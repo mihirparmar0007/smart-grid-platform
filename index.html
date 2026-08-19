@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SmartGrid OS — Gujarat Energy Management</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060b17;--surface:#080e1c;--card:#0c1526;--border:#162236;
+  --accent:#3b82f6;--solar:#f59e0b;--demand:#ef4444;--bess:#10b981;
+  --freq:#8b5cf6;--text:#e2e8f0;--muted:#64748b;--warn:#d97706;--crit:#dc2626;
+}
+html{scroll-behavior:smooth}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--surface)}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px}
+
+/* ── LAYOUT ── */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:58px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;z-index:20;padding:12px 0;gap:4px}
+#main{flex:1;overflow:hidden;position:relative}
+
+/* ── SIDEBAR ICONS ── */
+.sbi{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;transition:all .18s;border:1px solid transparent;position:relative}
+.sbi:hover{background:rgba(59,130,246,.15);border-color:rgba(59,130,246,.3);transform:scale(1.08)}
+.sbi.active{background:linear-gradient(135deg,rgba(29,78,216,.5),rgba(124,58,237,.3));border-color:rgba(59,130,246,.4);box-shadow:0 0 14px rgba(59,130,246,.25)}
+.sbi-tip{position:absolute;left:52px;top:50%;transform:translateY(-50%);background:#0f1a2e;border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:#e2e8f0;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s;z-index:100}
+.sbi:hover .sbi-tip{opacity:1}
+.sbi-sep{width:28px;height:1px;background:var(--border);margin:4px 0}
+.sb-live-dot{width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;animation:lp 2s infinite;margin-top:auto;margin-bottom:4px}
+@keyframes lp{0%,100%{opacity:1}50%{opacity:.3}}
+.sb-tick-mini{font-size:8px;font-family:monospace;color:#1e3a5f;margin-bottom:6px;writing-mode:vertical-rl;transform:rotate(180deg)}
+.sb-fault-dot{width:7px;height:7px;border-radius:50%;background:#dc2626;box-shadow:0 0 8px #dc2626;display:none;margin-bottom:2px}
+.sb-fault-dot.show{display:block}
+
+/* ── PAGE TRANSITION ── */
+.view{position:absolute;inset:0;overflow-y:auto;opacity:0;pointer-events:none;transform:translateX(60px);transition:opacity .38s cubic-bezier(.4,0,.2,1),transform .38s cubic-bezier(.4,0,.2,1)}
+.view.active{opacity:1;pointer-events:all;transform:translateX(0)}
+.view.exit-left{opacity:0;transform:translateX(-60px);pointer-events:none}
+
+/* ── VIEW HEADER ── */
+.vh{padding:14px 26px;border-bottom:1px solid var(--border);background:rgba(6,11,23,.92);backdrop-filter:blur(14px);position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.vh-back{display:flex;align-items:center;gap:10px;cursor:pointer;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.03);font-size:12px;color:#94a3b8;transition:all .2s;white-space:nowrap}
+.vh-back:hover{border-color:var(--accent);color:#fff;background:rgba(59,130,246,.1)}
+.vh-title{font-size:16px;font-weight:800;color:#fff;letter-spacing:-.01em}
+.vh-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.vbody{padding:22px 26px;display:flex;flex-direction:column;gap:18px;min-height:calc(100vh - 62px)}
+
+/* ── HOME ── */
+#view-home{background:var(--bg)}
+#particles-canvas{position:fixed;inset:0;pointer-events:none;z-index:0}
+.home-hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 24px 40px;text-align:center}
+.h-glow1{position:absolute;width:700px;height:700px;border-radius:50%;background:radial-gradient(circle,rgba(59,130,246,.07) 0%,transparent 65%);top:-150px;left:-150px;animation:fg1 9s ease-in-out infinite}
+.h-glow2{position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.06) 0%,transparent 65%);bottom:-100px;right:-100px;animation:fg2 11s ease-in-out infinite}
+@keyframes fg1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,25px)}}
+@keyframes fg2{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,-20px)}}
+.h-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(59,130,246,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.035) 1px,transparent 1px);background-size:44px 44px;animation:hgm 25s linear infinite}
+@keyframes hgm{from{background-position:0 0}to{background-position:0 44px}}
+.h-ring{position:absolute;border-radius:50%;border:1px solid rgba(59,130,246,.08);animation:hrx 5s ease-out infinite}
+.h-ring:nth-child(1){width:220px;height:220px;top:50%;left:50%;margin:-110px 0 0 -110px;animation-delay:0s}
+.h-ring:nth-child(2){width:440px;height:440px;top:50%;left:50%;margin:-220px 0 0 -220px;animation-delay:1.2s}
+.h-ring:nth-child(3){width:660px;height:660px;top:50%;left:50%;margin:-330px 0 0 -330px;animation-delay:2.4s}
+@keyframes hrx{0%{opacity:.5;transform:scale(1)}100%{opacity:0;transform:scale(1.25)}}
+.h-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(59,130,246,.09);border:1px solid rgba(59,130,246,.25);border-radius:20px;padding:5px 15px;font-size:11px;font-weight:600;color:#93c5fd;letter-spacing:.05em;text-transform:uppercase;margin-bottom:26px;animation:fup .7s ease-out both}
+.h-title{font-size:clamp(32px,5.5vw,62px);font-weight:900;line-height:1.08;letter-spacing:-.03em;margin-bottom:18px;animation:fup .7s ease-out .1s both}
+.h-title .t1{color:#fff}.h-title .t2{background:linear-gradient(135deg,#3b82f6,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.h-title .t3{background:linear-gradient(135deg,#f59e0b,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.h-desc{font-size:14px;color:#94a3b8;line-height:1.75;max-width:540px;margin:0 auto 32px;animation:fup .7s ease-out .2s both}
+@keyframes fup{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.h-live-strip{position:relative;z-index:1;display:flex;flex-wrap:wrap;justify-content:center;gap:12px;margin-bottom:50px;animation:fup .7s .3s both}
+.hls{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:12px;padding:12px 18px;text-align:center;min-width:110px;transition:all .2s;cursor:default}
+.hls:hover{background:rgba(59,130,246,.07);border-color:rgba(59,130,246,.3);transform:translateY(-3px)}
+.hls-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin-bottom:5px}
+.hls-val{font-size:19px;font-weight:800;font-family:monospace;color:#fff}
+.hls-unit{font-size:9px;color:var(--muted);margin-top:2px}
+.h-modules{position:relative;z-index:1;padding:0 20px 60px;max-width:980px;margin:0 auto;width:100%}
+.h-modules-title{font-size:13px;font-weight:700;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.1em;margin-bottom:28px}
+.mod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+.mod-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:22px 18px 18px;cursor:pointer;transition:all .28s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;text-align:center}
+.mod-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--mc);opacity:.8}
+.mod-card::after{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,var(--mc-glow) 0%,transparent 70%);opacity:0;transition:opacity .3s}
+.mod-card:hover{transform:translateY(-6px) scale(1.02);border-color:var(--mc);box-shadow:0 16px 48px rgba(0,0,0,.5),0 0 0 1px rgba(0,0,0,.1)}
+.mod-card:hover::after{opacity:1}
+.mod-card:active{transform:translateY(-2px) scale(.99)}
+.mod-icon-wrap{width:62px;height:62px;border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px;position:relative;z-index:1;transition:all .3s}
+.mod-card:hover .mod-icon-wrap{transform:scale(1.1) rotate(-4deg);box-shadow:0 0 20px var(--mc-glow)}
+.mod-name{font-size:13px;font-weight:700;color:#fff;margin-bottom:6px;position:relative;z-index:1}
+.mod-desc{font-size:10px;color:var(--muted);line-height:1.6;position:relative;z-index:1}
+.mod-live-row{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:10px;position:relative;z-index:1}
+.mod-live-val{font-size:14px;font-weight:800;font-family:monospace}
+.mod-live-label{font-size:9px;color:var(--muted)}
+.mod-arrow{position:absolute;bottom:12px;right:14px;font-size:12px;color:var(--muted);transition:all .25s;z-index:1}
+.mod-card:hover .mod-arrow{color:var(--mc);transform:translateX(4px)}
+.mod-status-dot{width:6px;height:6px;border-radius:50%;animation:lp 2s infinite}
+
+/* ── CARDS ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.card:hover{border-color:#1e3a5f;box-shadow:0 0 28px rgba(59,130,246,.05)}
+.card-hdr{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:12px;font-weight:700;color:#fff}
+.card-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.cbody{padding:16px 18px}
+
+/* ── KPI ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:12px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;position:relative;overflow:hidden;transition:all .2s;cursor:default}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kc,var(--accent))}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.3);border-color:var(--kc,var(--border))}
+.kpi-lbl{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.kpi-v{font-size:24px;font-weight:800;font-family:monospace;line-height:1;color:#fff}
+.kpi-s{font-size:10px;color:var(--muted);margin-top:4px}
+.kpi-bar{height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:9px;overflow:hidden}
+.kpi-bf{height:100%;border-radius:2px;transition:width 1.2s cubic-bezier(.23,1,.32,1)}
+
+/* ── FAULT BTNS ── */
+.frow{display:flex;gap:6px;flex-wrap:wrap}
+.fbtn{padding:5px 11px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:#94a3b8;font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;font-family:inherit}
+.fbtn:hover{border-color:var(--accent);color:#93c5fd}
+.fbtn.on{background:#7f1d1d55;border-color:#dc2626;color:#fca5a5;box-shadow:0 0 10px rgba(220,38,38,.2)}
+.fbtn.clr{background:#14532d55;border-color:#16a34a;color:#86efac}
+
+/* ── DUCK BANNER ── */
+.duck-ban{display:none;background:linear-gradient(135deg,#431407,#7c2d12);border:1px solid #b45309;border-radius:12px;padding:12px 16px;gap:10px;align-items:flex-start}
+.duck-ban.show{display:flex}
+
+/* ── STATUS BAR ── */
+.sbar{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:9px 16px;display:flex;flex-wrap:wrap;gap:16px;font-size:10px;font-family:monospace;color:var(--muted)}
+.sbar span{font-weight:700}
+
+/* ── BADGES ── */
+.sbadge{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:3px 7px;border-radius:20px;font-family:monospace}
+.sb-ok{background:#14532d33;color:#4ade80;border:1px solid #166534}
+.sb-warn{background:#78350f33;color:#fbbf24;border:1px solid #92400e}
+.sb-crit{background:#7f1d1d33;color:#f87171;border:1px solid #991b1b}
+
+/* ── AGENT CARDS ── */
+.ag-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:13px}
+.ag-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:9px;transition:all .2s;position:relative;overflow:hidden}
+.ag-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--ac,#3b82f6),transparent);opacity:.5}
+.ag-card.warn{border-color:#78350f88}
+.ag-card.crit{border-color:#7f1d1d88;animation:cp 2s infinite}
+@keyframes cp{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 4px rgba(220,38,38,.15)}}
+.ag-msg{background:#060d1a;border-radius:7px;padding:9px 11px;font-size:11px;font-family:monospace;color:#94a3b8;line-height:1.6;min-height:52px;border:1px solid rgba(255,255,255,.04)}
+.conf-bg{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px}
+.conf-fill{height:100%;border-radius:2px;transition:width .8s cubic-bezier(.23,1,.32,1)}
+
+/* ── TERMINAL ── */
+.terminal{background:#020810;border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.term-hdr{background:#080e1c;border-bottom:1px solid var(--border);padding:8px 13px;display:flex;align-items:center;gap:8px}
+.tdot{width:10px;height:10px;border-radius:50%}
+.term-lbl{font-size:11px;font-family:monospace;color:var(--muted);flex:1}
+.tcursor{width:6px;height:12px;background:#4ade80;border-radius:1px;animation:blink 1.2s step-start infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.term-body{height:300px;overflow-y:auto;padding:9px 13px;font-family:monospace;font-size:11px;line-height:1.7}
+.tl{animation:tlfade .3s ease-out}
+@keyframes tlfade{from{opacity:0;transform:translateY(3px)}to{opacity:1}}
+
+/* ── BESS ── */
+.bess-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:1100px){.bess-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.bess-grid{grid-template-columns:1fr}}
+.soc-svg-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0}
+.trow{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px}
+.trow:last-child{border:none}
+.trow-l{color:var(--muted)}.trow-v{font-family:monospace;font-weight:600}
+.tog-track{width:42px;height:22px;border-radius:11px;border:none;cursor:pointer;transition:background .2s;position:relative;flex-shrink:0}
+.tog-thumb{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.sp-sl{width:100%;accent-color:var(--accent);margin:8px 0}
+.sp-sl:disabled{opacity:.3}
+.rbtn{width:100%;padding:7px;border-radius:8px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:#94a3b8;font-size:11px;cursor:pointer;font-family:inherit;transition:all .2s}
+.rbtn:hover:not(:disabled){border-color:var(--accent);color:#fff}
+.rbtn:disabled{opacity:.3;cursor:default}
+
+/* ── TOPOLOGY ── */
+.topo-wrap{display:grid;grid-template-columns:1fr 300px;gap:14px}
+@media(max-width:1000px){.topo-wrap{grid-template-columns:1fr}}
+.topo-svg-box{background:#030a12;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+.sub-li{display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;cursor:pointer;font-size:10px;transition:background .15s}
+.sub-li:hover{background:rgba(255,255,255,.04)}
+
+/* ── FORECAST ── */
+.fc-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.fc-grid{grid-template-columns:1fr}}
+
+/* ── GRIDS ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:900px){.g2,.g3{grid-template-columns:1fr}}
+
+/* ── UTILS ── */
+.ts{color:var(--solar)}.td{color:var(--demand)}.tb{color:var(--bess)}.tf{color:var(--freq)}
+.tok{color:#4ade80}.twarn{color:#fbbf24}.tcrit{color:#f87171}.tmuted{color:var(--muted)}
+.mono{font-family:monospace}.fw7{font-weight:700}.fw8{font-weight:800}
+</style>
+</head>
+<body>
+<canvas id="particles-canvas"></canvas>
+
+<div id="app">
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="sbi active" onclick="nav('home')" id="sbi-home">🏠<span class="sbi-tip">Home</span></div>
+  <div class="sbi" onclick="nav('dashboard')" id="sbi-dashboard">⚡<span class="sbi-tip">Command Dashboard</span></div>
+  <div class="sbi-sep"></div>
+  <div class="sbi" onclick="nav('duck')" id="sbi-duck">🦆<span class="sbi-tip">Duck Curve Analytics</span></div>
+  <div class="sbi" onclick="nav('freq')" id="sbi-freq">〰️<span class="sbi-tip">Frequency Telemetry</span></div>
+  <div class="sbi" onclick="nav('bess')" id="sbi-bess">🔋<span class="sbi-tip">BESS Health</span></div>
+  <div class="sbi" onclick="nav('solar')" id="sbi-solar">☀️<span class="sbi-tip">Solar Forecasting</span></div>
+  <div class="sbi" onclick="nav('risk')" id="sbi-risk">🗺️<span class="sbi-tip">Outage Risk Map</span></div>
+  <div class="sbi" onclick="nav('agents')" id="sbi-agents">🤖<span class="sbi-tip">AI Agents</span></div>
+  <div class="sb-fault-dot" id="sb-fault-dot"></div>
+  <div class="sb-live-dot"></div>
+  <div class="sb-tick-mini" id="sb-tick-mini">0</div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- ══ HOME ══ -->
+<div class="view active" id="view-home" style="overflow-y:auto">
+<div class="home-hero">
+  <div class="h-glow1"></div><div class="h-glow2"></div>
+  <div class="h-grid-bg"></div>
+  <div class="h-ring"></div><div class="h-ring"></div><div class="h-ring"></div>
+  <div class="h-badge">🇮🇳 Gujarat · GUVNL · Real-Time SCADA Simulation</div>
+  <div class="h-title"><span class="t1">Smart Energy</span> <span class="t2">Management</span><br><span class="t1">&amp;</span> <span class="t3">Grid Balancing Platform</span></div>
+  <p class="h-desc">AI-powered multi-agent dispatch for Gujarat's solar-heavy grid. Real-time telemetry, duck curve detection, BESS optimization, and outage risk forecasting.</p>
+  <div class="h-live-strip">
+    <div class="hls"><div class="hls-label">☀️ Solar</div><div class="hls-val ts" id="h-solar">—</div><div class="hls-unit">MW</div></div>
+    <div class="hls"><div class="hls-label">⚡ Load</div><div class="hls-val td" id="h-demand">—</div><div class="hls-unit">MW</div></div>
+    <div class="hls"><div class="hls-label">🔋 BESS SoC</div><div class="hls-val tb" id="h-soc">—</div><div class="hls-unit">%</div></div>
+    <div class="hls"><div class="hls-label">📡 Freq</div><div class="hls-val tf" id="h-freq">—</div><div class="hls-unit">Hz</div></div>
+    <div class="hls"><div class="hls-label">⚠️ Imbalance</div><div class="hls-val" id="h-imbal">—</div><div class="hls-unit">MW ΔP</div></div>
+    <div class="hls"><div class="hls-label">🔴 Status</div><div class="hls-val" id="h-fault" style="font-size:12px">NOMINAL</div><div class="hls-unit">grid</div></div>
+  </div>
+</div>
+<div class="h-modules">
+  <div class="h-modules-title">Select a Module to Explore</div>
+  <div class="mod-grid" id="mod-grid"></div>
+</div>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div class="view" id="view-dashboard">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">⚡ Executive Command Dashboard</div><div class="vh-sub">Gujarat Grid · SCADA · <span class="mono" id="hdr-time">--:--:--</span> IST</div></div>
+    <div>
+      <div style="font-size:9px;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Fault Simulation</div>
+      <div class="frow">
+        <button class="fbtn" id="fb-cloud" onclick="toggleFault('cloud_cover')">☁️ Cloud</button>
+        <button class="fbtn" id="fb-spike" onclick="toggleFault('load_spike')">⚡ Spike</button>
+        <button class="fbtn" id="fb-feeder" onclick="toggleFault('feeder_trip')">🔴 Feeder</button>
+        <button class="fbtn clr" id="fb-clear" onclick="clearFault()" style="display:none">✓ Clear</button>
+      </div>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="duck-ban" id="duck-ban-main"><span style="font-size:18px">🦆</span><div><div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:3px">Duck Curve Event Detected</div><div id="duck-txt-main" style="font-size:11px;color:#fde68a;line-height:1.6"></div></div></div>
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:#ef4444"><div class="kpi-lbl">Grid Load<span>⚡</span></div><div class="kpi-v" id="kpi-demand">—</div><div class="kpi-s">Real-time demand</div></div>
+      <div class="kpi" style="--kc:#f59e0b"><div class="kpi-lbl">Solar Generation<span>☀️</span></div><div class="kpi-v" id="kpi-solar">—</div><div class="kpi-s" id="kpi-solar-pct">—</div><div class="kpi-bar"><div class="kpi-bf" id="kpi-solar-bar" style="background:#f59e0b"></div></div></div>
+      <div class="kpi" style="--kc:#3b82f6"><div class="kpi-lbl">Net Imbalance ΔP<span>📊</span></div><div class="kpi-v" id="kpi-imbal">—</div><div class="kpi-s" id="kpi-imbal-sub">—</div></div>
+      <div class="kpi" style="--kc:#10b981"><div class="kpi-lbl">BESS Reserve<span>🔋</span></div><div class="kpi-v" id="kpi-bess-res">—</div><div class="kpi-s" id="kpi-bess-sub">—</div><div class="kpi-bar"><div class="kpi-bf" id="kpi-soc-bar" style="background:#10b981"></div></div></div>
+      <div class="kpi" style="--kc:#8b5cf6"><div class="kpi-lbl">Grid Frequency<span>📡</span></div><div class="kpi-v tf" id="kpi-freq">—</div><div class="kpi-s" id="kpi-freq-sub">—</div>
+        <div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;margin-top:9px;position:relative">
+          <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(255,255,255,.2)"></div>
+          <div id="freq-bar" style="height:100%;border-radius:2px;position:absolute;transition:all .5s"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card"><div class="card-hdr"><div><div class="card-title">Real-Time Load vs Generation</div><div class="card-sub">Solar · Demand · BESS · Frequency (dual axis)</div></div></div><div class="cbody"><canvas id="main-chart" height="250"></canvas></div></div>
+    <div class="sbar">
+      <div>TICK <span id="sb-tick" class="tf">0</span></div>
+      <div>FAULT <span id="sb-fault" class="tok">NONE</span></div>
+      <div>SOLAR <span id="sb-solar" class="ts">—</span></div>
+      <div>DEMAND <span id="sb-demand" class="td">—</span></div>
+      <div>BESS <span id="sb-bess" class="tb">—</span></div>
+      <div>SOC <span id="sb-soc" class="tb">—</span></div>
+      <div>FREQ <span id="sb-freq" class="tf">—</span></div>
+      <div style="margin-left:auto">Duck: <span id="sb-duck" class="tok">CLEAR</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DUCK CURVE ══ -->
+<div class="view" id="view-duck">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">🦆 Duck Curve &amp; Balancing Analytics</div><div class="vh-sub">Solar overproduction · Evening ramps · BESS dispatch</div></div>
+    <div class="frow">
+      <button class="fbtn" id="dc-cloud" onclick="toggleFault('cloud_cover')">☁️ Cloud</button>
+      <button class="fbtn" id="dc-spike" onclick="toggleFault('load_spike')">⚡ Spike</button>
+      <button class="fbtn clr" id="dc-clear" onclick="clearFault()" style="display:none">✓ Clear</button>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="duck-ban" id="duck-ban-duck"><span style="font-size:18px">🦆</span><div><div style="font-size:12px;font-weight:700;color:#fbbf24;margin-bottom:3px">Duck Curve — Evening Ramp Active</div><div id="duck-txt-duck" style="font-size:11px;color:#fde68a;line-height:1.6"></div></div></div>
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:#f59e0b"><div class="kpi-lbl">Solar MW<span>☀️</span></div><div class="kpi-v ts" id="dc-solar">—</div><div class="kpi-s">Active generation</div></div>
+      <div class="kpi" style="--kc:#ef4444"><div class="kpi-lbl">Demand MW<span>⚡</span></div><div class="kpi-v td" id="dc-demand">—</div><div class="kpi-s">Consumer load</div></div>
+      <div class="kpi" style="--kc:#10b981"><div class="kpi-lbl">BESS Dispatch<span>🔋</span></div><div class="kpi-v tb" id="dc-bess">—</div><div class="kpi-s">Active balancing</div></div>
+      <div class="kpi" style="--kc:#3b82f6"><div class="kpi-lbl">Net Imbalance<span>📊</span></div><div class="kpi-v" id="dc-imbal">—</div><div class="kpi-s">ΔP gap</div></div>
+    </div>
+    <div class="card"><div class="card-hdr"><div class="card-title">Duck Curve — Solar vs Demand vs BESS Dispatch</div></div><div class="cbody"><canvas id="duck-chart" height="290"></canvas></div></div>
+    <div class="g2">
+      <div class="card"><div class="card-hdr"><div><div class="card-title">24-Hour Generation Profile</div><div class="card-sub">Solar bell curve with demand overlay</div></div></div><div class="cbody"><canvas id="duck-hourly" height="190"></canvas></div></div>
+      <div class="card"><div class="card-hdr"><div><div class="card-title">BESS Dispatch vs Imbalance</div><div class="card-sub">Scatter: dispatch response</div></div></div><div class="cbody"><canvas id="duck-scatter" height="190"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ FREQUENCY ══ -->
+<div class="view" id="view-freq">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">〰️ Frequency &amp; Grid Stability Telemetry</div><div class="vh-sub">Live 50 Hz oscilloscope · ±0.2 Hz / ±0.5 Hz reference bands</div></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span class="sbadge sb-ok" id="freq-badge">NOMINAL</span>
+      <span class="mono fw8 tf" id="freq-live-big" style="font-size:20px">50.000 Hz</span>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:#8b5cf6"><div class="kpi-lbl">Frequency<span>📡</span></div><div class="kpi-v tf" id="fq-hz">50.000</div><div class="kpi-s">Hz live</div></div>
+      <div class="kpi" style="--kc:#3b82f6"><div class="kpi-lbl">Deviation<span>↕</span></div><div class="kpi-v" id="fq-dev">+0.000</div><div class="kpi-s">Hz from 50.0</div></div>
+      <div class="kpi" style="--kc:#10b981"><div class="kpi-lbl">ROCOF<span>⚡</span></div><div class="kpi-v" id="fq-rocof">0.000</div><div class="kpi-s">Hz/s rate of change</div></div>
+      <div class="kpi" style="--kc:#f59e0b"><div class="kpi-lbl">Droop Response<span>🔧</span></div><div class="kpi-v" id="fq-droop">—</div><div class="kpi-s">MW correction</div></div>
+    </div>
+    <div class="card"><div class="card-hdr"><div><div class="card-title">Live Frequency Oscilloscope</div><div class="card-sub">±0.2 Hz safe band (green) · ±0.5 Hz alarm band (red)</div></div></div><div class="cbody" style="padding:12px 14px"><canvas id="freq-chart" height="250"></canvas></div></div>
+    <div class="g2">
+      <div class="card"><div class="card-hdr"><div><div class="card-title">Frequency Histogram</div><div class="card-sub">Distribution — last 80 samples</div></div></div><div class="cbody"><canvas id="freq-hist" height="170"></canvas></div></div>
+      <div class="card"><div class="card-hdr"><div><div class="card-title">Droop Control Scatter</div><div class="card-sub">Corrective MW vs deviation</div></div></div><div class="cbody"><canvas id="droop-chart" height="170"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BESS ══ -->
+<div class="view" id="view-bess">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">🔋 BESS Health &amp; Cycling</div><div class="vh-sub">500 MWh / 250 MW · Thermal ramps · Degradation</div></div>
+    <div style="display:flex;align-items:center;gap:9px">
+      <span style="font-size:11px;color:var(--muted)">Mode:</span>
+      <button class="tog-track" id="tog-track" onclick="toggleOverride()" style="background:#10b981"><div class="tog-thumb" id="tog-thumb" style="left:3px"></div></button>
+      <span id="tog-lbl" style="font-size:11px;font-weight:700;color:#4ade80">Autonomous AI</span>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:#10b981"><div class="kpi-lbl">SoC<span>🔋</span></div><div class="kpi-v tb" id="bq-soc">—%</div><div class="kpi-s" id="bq-soc-sub">—</div><div class="kpi-bar"><div class="kpi-bf" id="bq-soc-bar" style="background:#10b981"></div></div></div>
+      <div class="kpi" style="--kc:#f59e0b"><div class="kpi-lbl">Dispatch<span>⚡</span></div><div class="kpi-v" id="bq-dispatch">—</div><div class="kpi-s" id="bq-dsp-sub">—</div></div>
+      <div class="kpi" style="--kc:#ef4444"><div class="kpi-lbl">Cell Temp<span>🌡</span></div><div class="kpi-v" id="bq-temp">—</div><div class="kpi-s">°C</div></div>
+      <div class="kpi" style="--kc:#8b5cf6"><div class="kpi-lbl">Degradation<span>📉</span></div><div class="kpi-v" id="bq-degrad">—</div><div class="kpi-s">capacity index</div></div>
+    </div>
+    <div class="bess-grid">
+      <div class="card">
+        <div class="card-hdr"><div><div class="card-title">State of Charge</div><div class="card-sub">Battery energy level</div></div></div>
+        <div class="cbody">
+          <div class="soc-svg-wrap">
+            <svg width="180" height="110" viewBox="0 0 180 110">
+              <path d="M20 100 A70 70 0 1 1 160 100" stroke="#162236" stroke-width="14" fill="none" stroke-linecap="round"/>
+              <path id="soc-arc" d="M20 100 A70 70 0 1 1 160 100" stroke="#10b981" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="0 1000"/>
+            </svg>
+            <div style="text-align:center;margin-top:-8px"><div id="soc-num" style="font-size:30px;font-weight:800;font-family:monospace;color:#10b981">65.0</div><div style="font-size:10px;color:var(--muted)">% SoC</div></div>
+          </div>
+          <div style="margin-top:12px">
+            <div class="trow"><span class="trow-l">Reserve</span><span class="trow-v tb" id="b-reserve">—</span></div>
+            <div class="trow"><span class="trow-l">Charge Rate</span><span class="trow-v" id="b-charge" style="color:#3b82f6">—</span></div>
+            <div class="trow"><span class="trow-l">Discharge Rate</span><span class="trow-v ts" id="b-discharge">—</span></div>
+            <div class="trow"><span class="trow-l">Status</span><span class="trow-v" id="b-status">—</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-hdr"><div class="card-title">Battery Telemetry</div></div>
+        <div class="cbody">
+          <div class="trow"><span class="trow-l">Cell Temperature</span><span class="trow-v" id="b-temp">—</span></div>
+          <div class="trow"><span class="trow-l">Degradation Index</span><span class="trow-v tb" id="b-degrad">—</span></div>
+          <div class="trow"><span class="trow-l">Grid Frequency</span><span class="trow-v tf" id="b-freq">—</span></div>
+          <div class="trow"><span class="trow-l">Net Imbalance</span><span class="trow-v" id="b-imbal">—</span></div>
+          <div class="trow"><span class="trow-l">Cycle Count</span><span class="trow-v" id="b-cycles">—</span></div>
+          <div class="trow"><span class="trow-l">Round-trip Eff.</span><span class="trow-v tb">93.4%</span></div>
+          <div class="trow"><span class="trow-l">Nominal Capacity</span><span class="trow-v">500 MWh</span></div>
+          <div class="trow"><span class="trow-l">Max Discharge</span><span class="trow-v">250 MW</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="card">
+          <div class="card-hdr"><div><div class="card-title">Operator Setpoint<span id="ov-tag" style="font-size:10px;color:#60a5fa;display:none;margin-left:6px">(ACTIVE)</span></div><div class="card-sub" id="ov-desc">Enable override to set dispatch</div></div></div>
+          <div class="cbody">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:3px"><span>Setpoint</span><span class="mono fw7" id="sp-lbl" style="color:#f59e0b">0 MW</span></div>
+            <input type="range" class="sp-sl" id="sp-slider" min="-250" max="250" step="5" value="0" disabled oninput="onSp(this.value)"/>
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#374151;margin-bottom:10px"><span>-250MW</span><span>0</span><span>+250MW</span></div>
+            <button class="rbtn" id="sp-reset" onclick="onSp(0)" disabled>Reset to Standby</button>
+          </div>
+        </div>
+        <div class="card" style="flex:1"><div class="card-hdr"><div class="card-title">SoC &amp; Thermal Dual-Axis</div></div><div class="cbody"><canvas id="soc-dual" height="140"></canvas></div></div>
+      </div>
+    </div>
+    <div class="card"><div class="card-hdr"><div class="card-title">BESS Cycle Analysis — SoC Trajectory</div></div><div class="cbody"><canvas id="bess-cycle" height="170"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ══ SOLAR ══ -->
+<div class="view" id="view-solar">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">☀️ Solar Forecasting &amp; Uncertainty</div><div class="vh-sub">P10 / P50 / P90 confidence ribbons · Irradiance · Cloud-cover impact</div></div>
+    <div class="frow">
+      <button class="fbtn" id="sf-cloud" onclick="toggleFault('cloud_cover')">☁️ Inject Cloud Cover</button>
+      <button class="fbtn clr" id="sf-clear" onclick="clearFault()" style="display:none">✓ Clear</button>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="kpi-grid">
+      <div class="kpi" style="--kc:#f59e0b"><div class="kpi-lbl">P50 Median<span>☀️</span></div><div class="kpi-v ts" id="sf-p50">—</div><div class="kpi-s">MW forecast</div></div>
+      <div class="kpi" style="--kc:#fbbf24"><div class="kpi-lbl">P90 Upper<span>↑</span></div><div class="kpi-v" id="sf-p90" style="color:#fbbf24">—</div><div class="kpi-s">90th percentile MW</div></div>
+      <div class="kpi" style="--kc:#d97706"><div class="kpi-lbl">P10 Lower<span>↓</span></div><div class="kpi-v twarn" id="sf-p10">—</div><div class="kpi-s">10th percentile MW</div></div>
+      <div class="kpi" style="--kc:#3b82f6"><div class="kpi-lbl">Confidence<span>📊</span></div><div class="kpi-v" id="sf-conf" style="color:#3b82f6">—</div><div class="kpi-s">model certainty</div></div>
+    </div>
+    <div class="card"><div class="card-hdr"><div><div class="card-title">P10 / P50 / P90 Uncertainty Ribbons</div><div class="card-sub">Layered transparent bands — probabilistic solar generation forecast</div></div></div><div class="cbody"><canvas id="solar-uncert" height="270"></canvas></div></div>
+    <div class="fc-grid">
+      <div class="card"><div class="card-hdr"><div><div class="card-title">Irradiance Profile (W/m²)</div><div class="card-sub">Bell curve with cloud perturbation</div></div></div><div class="cbody"><canvas id="irr-chart" height="180"></canvas></div></div>
+      <div class="card"><div class="card-hdr"><div><div class="card-title">Forecast Error Width</div><div class="card-sub">Prediction interval MW spread</div></div></div><div class="cbody"><canvas id="fc-error" height="180"></canvas></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RISK MAP ══ -->
+<div class="view" id="view-risk">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">🗺️ Regional Stress &amp; Outage Risk</div><div class="vh-sub">12 substations · Gujarat 220/400 kV · Thermal heatmap</div></div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <span class="sbadge sb-ok" id="topo-nom">0 Nominal</span>
+      <span class="sbadge sb-warn" id="topo-str">0 Stressed</span>
+      <span class="sbadge sb-crit" id="topo-crit">0 Critical</span>
+    </div>
+  </div>
+  <div class="vbody">
+    <div class="topo-wrap">
+      <div>
+        <div class="topo-svg-box">
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:#fff">Substation Topology — Gujarat</span>
+            <div style="display:flex;gap:9px;font-size:10px;color:#94a3b8">
+              <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#16a34a;margin-right:3px"></span>Nominal</span>
+              <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#d97706;margin-right:3px"></span>Stressed</span>
+              <span><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:#dc2626;margin-right:3px"></span>Critical</span>
+            </div>
+          </div>
+          <svg id="topo-svg" viewBox="0 0 580 400" style="width:100%;display:block"></svg>
+        </div>
+        <div class="card" style="margin-top:14px"><div class="card-hdr"><div><div class="card-title">Thermal Heatmap Grid</div><div class="card-sub">Sorted by stress intensity</div></div></div><div class="cbody"><div id="heatmap-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px"></div></div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="card" id="topo-detail">
+          <div class="card-hdr"><div class="card-title">Substation Detail</div></div>
+          <div class="cbody" style="text-align:center;color:var(--muted);font-size:12px;padding:18px">Click a node on the map</div>
+        </div>
+        <div class="card">
+          <div class="card-hdr"><div class="card-title">Fault Simulation</div></div>
+          <div class="cbody" style="display:flex;flex-direction:column;gap:7px">
+            <button class="fbtn" id="fc-cloud" onclick="toggleFault('cloud_cover')" style="width:100%;text-align:left;padding:9px 11px"><div style="font-weight:700">☁️ Cloud Cover</div><div style="font-size:9px;opacity:.6;margin-top:2px">Irradiance drop</div></button>
+            <button class="fbtn" id="fc-spike" onclick="toggleFault('load_spike')" style="width:100%;text-align:left;padding:9px 11px"><div style="font-weight:700">⚡ Load Spike</div><div style="font-size:9px;opacity:.6;margin-top:2px">Industrial demand surge</div></button>
+            <button class="fbtn" id="fc-feeder" onclick="toggleFault('feeder_trip')" style="width:100%;text-align:left;padding:9px 11px"><div style="font-weight:700">🔴 Feeder Trip</div><div style="font-size:9px;opacity:.6;margin-top:2px">G-12 offline</div></button>
+            <button class="fbtn clr" id="fc-clear" onclick="clearFault()" style="display:none;width:100%;font-weight:700;padding:9px">✓ Clear All</button>
+          </div>
+        </div>
+        <div class="card" style="flex:1;overflow:hidden">
+          <div class="card-hdr"><div class="card-title">All Substations</div></div>
+          <div style="overflow-y:auto;max-height:210px;padding:6px"><div id="sub-list"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AGENTS ══ -->
+<div class="view" id="view-agents">
+  <div class="vh">
+    <div class="vh-back" onclick="nav('home')">← Home</div>
+    <div><div class="vh-title">🤖 Multi-Agent AI Control Center</div><div class="vh-sub">5 autonomous agents · Real-time reasoning · Dispatch negotiation</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap" id="ag-summary"></div>
+  </div>
+  <div class="vbody">
+    <div class="ag-grid" id="ag-grid"></div>
+    <div class="terminal">
+      <div class="term-hdr">
+        <div style="display:flex;gap:5px"><div class="tdot" style="background:#ff5f57"></div><div class="tdot" style="background:#ffbd2e"></div><div class="tdot" style="background:#28ca41"></div></div>
+        <div class="term-lbl">agent-action-stream · <span id="term-cnt">0</span> events</div>
+        <div class="tcursor"></div>
+      </div>
+      <div class="term-body" id="term-body"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ══ PARTICLES ══════════════════════════════════════════════════════════
+const pc=document.getElementById('particles-canvas');
+const pctx=pc.getContext('2d');
+let pts=[];
+function resizePC(){pc.width=window.innerWidth;pc.height=window.innerHeight;}
+resizePC();window.addEventListener('resize',resizePC);
+for(let i=0;i<70;i++)pts.push({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,r:Math.random()*1.5+.3,vx:(Math.random()-.5)*.3,vy:(Math.random()-.5)*.3,a:Math.random()*.5+.1});
+function drawParticles(){
+  pctx.clearRect(0,0,pc.width,pc.height);
+  pts.forEach(p=>{
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;
+    if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;
+    pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    pctx.fillStyle=`rgba(59,130,246,${p.a})`;pctx.fill();
+  });
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const d=Math.hypot(pts[i].x-pts[j].x,pts[i].y-pts[j].y);
+    if(d<100){pctx.beginPath();pctx.moveTo(pts[i].x,pts[i].y);pctx.lineTo(pts[j].x,pts[j].y);pctx.strokeStyle=`rgba(59,130,246,${.08*(1-d/100)})`;pctx.stroke();}
+  }
+  requestAnimationFrame(drawParticles);
+}
+drawParticles();
+
+
+// ══ SIMULATION ENGINE ══════════════════════════════════════════════════
+const SIM={
+  tick:0, fault:null, manualOn:false, sp:0, soc:62, lastB:0, prevFreq:50,
+  subs:{
+    'G-01':{name:'Gandhinagar North',   stress:.30, lat:23.22, lng:72.68},
+    'G-02':{name:'Ahmedabad Central',   stress:.50, lat:23.03, lng:72.58},
+    'G-03':{name:'Surat Industrial',    stress:.70, lat:21.17, lng:72.83},
+    'G-04':{name:'Vadodara West',       stress:.40, lat:22.30, lng:73.20},
+    'G-05':{name:'Rajkot Solar Hub',    stress:.20, lat:22.30, lng:70.80},
+    'G-06':{name:'Bhavnagar Port',      stress:.60, lat:21.76, lng:72.15},
+    'G-07':{name:'Jamnagar Refinery',   stress:.80, lat:22.47, lng:70.07},
+    'G-08':{name:'Mehsana Solar',       stress:.30, lat:23.60, lng:72.38},
+    'G-09':{name:'Anand Feeder-12',     stress:.45, lat:22.56, lng:72.95},
+    'G-10':{name:'Kutch Wind+Solar',    stress:.25, lat:23.73, lng:69.86},
+    'G-11':{name:'Navsari Coastal',     stress:.55, lat:20.95, lng:72.93},
+    'G-12':{name:'Morbi Ceramics',      stress:.65, lat:22.82, lng:70.84},
+  }
+};
+
+function rn(m=0,s=1){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return m+s*Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function cl(v,a,b){return Math.max(a,Math.min(b,v));}
+function hIST(){const d=new Date(Date.now()+5.5*3600000);return d.getUTCHours()+d.getUTCMinutes()/60;}
+function tIST(){const d=new Date(Date.now()+5.5*3600000);return[d.getUTCHours(),d.getUTCMinutes(),d.getUTCSeconds()].map(n=>String(n).padStart(2,'0')).join(':');}
+function tsL(){const d=new Date(Date.now()+5.5*3600000);return String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0');}
+
+function solar(h,f){if(h<6||h>19)return 0;let b=1200*Math.exp(-.5*((h-13)/2.8)**2);if(f==='cloud_cover')b*=.1+Math.random()*.25;return Math.max(0,b+rn(0,30))*4.2/1000;}
+function demand(h,f){const mp=3800*Math.exp(-.5*((h-8.5)/1.5)**2),ep=4200*Math.exp(-.5*((h-20)/1.8)**2);let t=2200+mp+ep+rn(0,80);if(f==='load_spike')t*=1.18+Math.random()*.17;return Math.max(1800,t)/1000;}
+function bessFn(s,d,soc,f,m,sp){if(m)return sp;let im=d-s;if(f==='feeder_trip')im+=300+Math.random()*300;const md=Math.min(250,soc*2.5),mc=Math.min(200,(100-soc)*2);if(im>50)return Math.min(im*.7,md);if(im<-80)return Math.max(im*.6,-mc);return 0;}
+function gfreq(im){return+(50+(-im/1000)*.5+rn(0,.012)).toFixed(3);}
+
+function simulate(){
+  const h=hIST();
+  const s=+solar(h,SIM.fault).toFixed(1);
+  const d=+demand(h,SIM.fault).toFixed(1);
+  SIM.soc=cl(SIM.soc-SIM.lastB*.016,10,95);
+  const b=+bessFn(s,d,SIM.soc,SIM.fault,SIM.manualOn,SIM.sp).toFixed(1);
+  SIM.lastB=b;
+  const im=+(s+b-d).toFixed(1);
+  const fr=gfreq(im);
+  const duck=(h>=17&&h<=21)&&(s<d*.25);
+  for(const[id,sub]of Object.entries(SIM.subs)){
+    let delta=rn(0,.025);
+    if(SIM.fault==='feeder_trip'&&(id==='G-12'||id==='G-07'))delta+=.07;
+    sub.stress=cl(sub.stress+delta,.05,.99);
+  }
+  SIM.tick++;
+  return{tick:SIM.tick,s,d,b,soc:+SIM.soc.toFixed(1),im,fr,duck,fault:SIM.fault,ts:tIST(),tsl:tsL()};
+}
+
+// ══ MODULE DEFINITIONS ══════════════════════════════════════════════════
+const MODULES=[
+  {id:'dashboard',icon:'⚡',name:'Command Dashboard',desc:'KPI cards, load vs generation curves, duck curve alerts',color:'#3b82f6',glow:'rgba(59,130,246,.12)',liveUnit:'MW demand'},
+  {id:'duck',     icon:'🦆',name:'Duck Curve Analytics',desc:'ComposedChart: solar area + demand + BESS bar dispatch',color:'#f59e0b',glow:'rgba(245,158,11,.10)',liveUnit:'MW solar'},
+  {id:'freq',     icon:'〰️',name:'Frequency Telemetry',desc:'Live oscilloscope with ±0.2/±0.5 Hz reference bands',color:'#8b5cf6',glow:'rgba(139,92,246,.10)',liveUnit:'Hz grid'},
+  {id:'bess',     icon:'🔋',name:'BESS Health & Cycling',desc:'SoC gauge, thermal ramps, degradation, manual override',color:'#10b981',glow:'rgba(16,185,129,.10)',liveUnit:'% SoC'},
+  {id:'solar',    icon:'☀️',name:'Solar Forecasting',desc:'P10/P50/P90 uncertainty ribbons, irradiance modeling',color:'#fbbf24',glow:'rgba(251,191,36,.08)',liveUnit:'MW P50'},
+  {id:'risk',     icon:'🗺️',name:'Outage Risk Map',desc:'Gujarat SVG topology + thermal heatmap + fault injection',color:'#ef4444',glow:'rgba(239,68,68,.10)',liveUnit:'MW imbalance'},
+  {id:'agents',   icon:'🤖',name:'AI Control Center',desc:'5 autonomous agents, reasoning logs, dispatch terminal',color:'#a855f7',glow:'rgba(168,85,247,.10)',liveUnit:'agents'},
+];
+
+function buildModuleGrid(){
+  const grid=document.getElementById('mod-grid');
+  MODULES.forEach(m=>{
+    const card=document.createElement('div');
+    card.className='mod-card';
+    card.style.setProperty('--mc',m.color);
+    card.style.setProperty('--mc-glow',m.glow);
+    card.id='mc-'+m.id;
+    card.innerHTML=`
+      <div class="mod-icon-wrap" style="background:${m.glow}">${m.icon}</div>
+      <div class="mod-name">${m.name}</div>
+      <div class="mod-desc">${m.desc}</div>
+      <div class="mod-live-row">
+        <div class="mod-status-dot" id="mdot-${m.id}" style="background:${m.color};box-shadow:0 0 6px ${m.color}"></div>
+        <div class="mod-live-val" id="mlv-${m.id}" style="color:${m.color}">—</div>
+        <div class="mod-live-label">${m.liveUnit}</div>
+      </div>
+      <div class="mod-arrow">→</div>`;
+    card.addEventListener('click',()=>nav(m.id));
+    card.addEventListener('mousedown',e=>{
+      const rip=document.createElement('span');
+      const rect=card.getBoundingClientRect();
+      const size=Math.max(rect.width,rect.height);
+      rip.style.cssText=`position:absolute;width:${size}px;height:${size}px;border-radius:50%;background:${m.color};opacity:.15;transform:translate(-50%,-50%) scale(0);left:${e.clientX-rect.left}px;top:${e.clientY-rect.top}px;transition:transform .5s,opacity .5s;pointer-events:none;z-index:10`;
+      card.appendChild(rip);
+      setTimeout(()=>{rip.style.transform='translate(-50%,-50%) scale(2.5)';rip.style.opacity='0';},10);
+      setTimeout(()=>rip.remove(),600);
+    });
+    grid.appendChild(card);
+  });
+}
+
+function updateModuleLiveValues(t){
+  const vals={dashboard:t.d,duck:t.s,freq:t.fr,bess:t.soc,solar:t.s,risk:Math.abs(t.im).toFixed(1),agents:AGENTS.filter(a=>_lastReasoning[a.id]?.st==='CRITICAL').length+' crit'};
+  MODULES.forEach(m=>{
+    const el=document.getElementById('mlv-'+m.id);
+    if(el)el.textContent=vals[m.id]??'—';
+  });
+}
+
+// ══ PAGE TRANSITION ══════════════════════════════════════════════════════
+let currentView='home';
+function nav(id){
+  if(id===currentView)return;
+  const prev=document.getElementById('view-'+currentView);
+  const next=document.getElementById('view-'+id);
+  if(!next)return;
+  prev.classList.remove('active');
+  prev.classList.add('exit-left');
+  setTimeout(()=>prev.classList.remove('exit-left'),400);
+  next.classList.add('active');
+  if(id!=='home')next.scrollTop=0;
+  currentView=id;
+  document.querySelectorAll('.sbi').forEach(s=>s.classList.remove('active'));
+  const sbi=document.getElementById('sbi-'+id);
+  if(sbi)sbi.classList.add('active');
+}
+
+// ══ HISTORY & CHARTS ══════════════════════════════════════════════════════
+let hist=[],fhist=[],shist=[],thist=[];
+let CHARTS={};
+
+function seedHist(){
+  for(let i=0;i<60;i++){
+    const dd=new Date(Date.now()+5.5*3600000-(60-i)*2000);
+    const h=dd.getUTCHours()+dd.getUTCMinutes()/60;
+    const ts=String(dd.getUTCHours()).padStart(2,'0')+':'+String(dd.getUTCMinutes()).padStart(2,'0');
+    const s=+solar(h,null).toFixed(1),dm=+demand(h,null).toFixed(1);
+    const b=+bessFn(s,dm,65,null,false,0).toFixed(1),im=+(s+b-dm).toFixed(1),fr=gfreq(im);
+    hist.push({ts,s,dm,b,im,fr});fhist.push(fr);shist.push(65+rn(0,1));thist.push(32+rn(0,1.5));
+  }
+}
+seedHist();
+
+function gen24h(){
+  const L=[],S=[],D=[],B=[],P10=[],P50=[],P90=[],IRR=[];
+  for(let h=0;h<=24;h+=.5){
+    L.push(`${String(Math.floor(h)).padStart(2,'0')}:${h%1===0?'00':'30'}`);
+    const s=Math.max(0,1200*Math.exp(-.5*((h-13)/2.8)**2));
+    const d=2200+3800*Math.exp(-.5*((h-8.5)/1.5)**2)+4200*Math.exp(-.5*((h-20)/1.8)**2);
+    const sMW=+(s*4.2/1000).toFixed(1),dMW=+(d/1000).toFixed(1);
+    const bMW=+bessFn(sMW,dMW,65,null,false,0).toFixed(1);
+    const sp=s>200?s*.18:40;
+    S.push(sMW);D.push(dMW);B.push(bMW);IRR.push(+s.toFixed(0));
+    P50.push(sMW);P90.push(+(sMW+sp*4.2/1000).toFixed(1));P10.push(+(Math.max(0,sMW-sp*4.2/1000)).toFixed(1));
+  }
+  return{L,S,D,B,P10,P50,P90,IRR};
+}
+let H24;
+
+function bo(yL,y2L){
+  return{
+    responsive:true,animation:{duration:0},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#0c1526',borderColor:'#162236',borderWidth:1,titleColor:'#64748b',bodyColor:'#e2e8f0'}},
+    scales:{
+      x:{ticks:{color:'#2a3f5a',font:{size:9},maxTicksLimit:8},grid:{color:'#0d1f36'},border:{color:'#162236'}},
+      y:{ticks:{color:'#3a5070',font:{size:9}},grid:{color:'#0d1f36'},border:{color:'#162236'},title:yL?{display:true,text:yL,color:'#3a5070',font:{size:9}}:undefined},
+      ...(y2L?{y2:{position:'right',ticks:{color:'#6b4fa0',font:{size:9}},grid:{drawOnChartArea:false},border:{color:'#162236'},title:{display:true,text:y2L,color:'#6b4fa0',font:{size:9}}}}:{})
+    }
+  };
+}
+
+function initCharts(){
+  H24=gen24h();
+  const L=hist.map(h=>h.ts);
+  // Main dashboard chart
+  CHARTS.main=new Chart(document.getElementById('main-chart'),{type:'line',data:{labels:[...L],datasets:[
+    {label:'Solar',data:hist.map(h=>h.s),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.09)',fill:true,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y'},
+    {label:'Demand',data:hist.map(h=>h.dm),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.06)',fill:true,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y'},
+    {label:'BESS',data:hist.map(h=>h.b),borderColor:'#10b981',borderDash:[4,2],fill:false,tension:.3,pointRadius:0,borderWidth:1.5,yAxisID:'y'},
+    {label:'Freq',data:hist.map(h=>h.fr),borderColor:'#8b5cf6',fill:false,tension:.2,pointRadius:0,borderWidth:1.5,yAxisID:'y2'},
+  ]},options:{...bo('MW','Hz'),scales:{...bo('MW','Hz').scales,y2:{...bo('MW','Hz').scales.y2,min:49.3,max:50.7}}}});
+  // Duck curve main
+  CHARTS.duck=new Chart(document.getElementById('duck-chart'),{type:'bar',data:{labels:[...L],datasets:[
+    {type:'line',label:'Solar',data:hist.map(h=>h.s),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.1)',fill:true,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y',order:1},
+    {type:'line',label:'Demand',data:hist.map(h=>h.dm),borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.07)',fill:true,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y',order:1},
+    {type:'bar',label:'BESS',data:hist.map(h=>h.b),backgroundColor:hist.map(h=>h.b>0?'rgba(16,185,129,.6)':'rgba(59,130,246,.6)'),borderRadius:2,yAxisID:'y',order:2},
+    {type:'line',label:'Imbalance',data:hist.map(h=>h.im),borderColor:'rgba(59,130,246,.45)',borderDash:[5,3],fill:false,tension:.3,pointRadius:0,borderWidth:1,yAxisID:'y',order:1},
+  ]},options:bo('MW')});
+  // 24-hour generation profile
+  CHARTS.duckHourly=new Chart(document.getElementById('duck-hourly'),{type:'line',data:{labels:H24.L,datasets:[
+    {label:'Solar',data:H24.S,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.13)',fill:true,tension:.4,pointRadius:0,borderWidth:2},
+    {label:'Demand',data:H24.D,borderColor:'#ef4444',backgroundColor:'rgba(239,68,68,.07)',fill:true,tension:.4,pointRadius:0,borderWidth:2},
+  ]},options:bo('MW')});
+  // Scatter: BESS vs Imbalance
+  CHARTS.duckSc=new Chart(document.getElementById('duck-scatter'),{type:'scatter',data:{datasets:[{label:'BESS vs Im',data:hist.map(h=>({x:h.im,y:h.b})),backgroundColor:'rgba(16,185,129,.45)',pointRadius:3}]},options:{...bo('BESS MW'),scales:{x:{...bo().scales.x,title:{display:true,text:'Imbalance MW',color:'#3a5070',font:{size:9}}},y:{...bo().scales.y}}}});
+  // Frequency oscilloscope
+  CHARTS.freq=new Chart(document.getElementById('freq-chart'),{type:'line',data:{labels:[...L],datasets:[{label:'Freq',data:[...fhist],borderColor:'#8b5cf6',fill:false,tension:.2,pointRadius:0,borderWidth:1.5}]},options:{...bo('Hz'),
+    plugins:{...bo('Hz').plugins,annotation:{annotations:{band1:{type:'box',yMin:49.8,yMax:50.2,backgroundColor:'rgba(16,185,129,.04)',borderColor:'rgba(16,185,129,.25)',borderWidth:1},band2:{type:'box',yMin:49.5,yMax:50.5,backgroundColor:'rgba(220,38,38,.03)',borderColor:'rgba(220,38,38,.18)',borderWidth:1}}}},
+    scales:{...bo('Hz').scales,y:{...bo('Hz').scales.y,min:49.3,max:50.7}}}});
+  // Freq histogram
+  CHARTS.freqHist=new Chart(document.getElementById('freq-hist'),{type:'bar',data:{labels:['<49.5','49.5-49.7','49.7-49.9','49.9-50.1','50.1-50.3','50.3-50.5','>50.5'],datasets:[{data:[0,0,0,60,0,0,0],backgroundColor:['#ef4444','#f59e0b','#fbbf24','#10b981','#fbbf24','#f59e0b','#ef4444'],borderRadius:3}]},options:bo('Count')});
+  // Droop scatter
+  const dd=Array.from({length:30},()=>{const im=rn(0,200);return{x:+im.toFixed(1),y:+(im*-.5).toFixed(1)};});
+  CHARTS.droop=new Chart(document.getElementById('droop-chart'),{type:'scatter',data:{datasets:[{label:'Droop',data:dd,backgroundColor:'rgba(139,92,246,.45)',pointRadius:4}]},options:{...bo('Correction MW'),scales:{x:{...bo().scales.x,title:{display:true,text:'Imbalance MW',color:'#3a5070',font:{size:9}}},y:{...bo().scales.y}}}});
+  // SoC + Temp dual-axis
+  CHARTS.socDual=new Chart(document.getElementById('soc-dual'),{type:'line',data:{labels:Array(60).fill(''),datasets:[
+    {label:'SoC%',data:[...shist],borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.09)',fill:true,tension:.3,pointRadius:0,borderWidth:2,yAxisID:'y'},
+    {label:'Temp',data:[...thist],borderColor:'#ef4444',fill:false,tension:.3,pointRadius:0,borderWidth:1.5,yAxisID:'y2'},
+  ]},options:{...bo('SoC%','°C'),scales:{...bo('SoC%','°C').scales,y:{...bo('SoC%','°C').scales.y,min:0,max:100},y2:{...bo('SoC%','°C').scales.y2,min:20,max:60}}}});
+  // BESS cycle trajectory
+  CHARTS.bessCycle=new Chart(document.getElementById('bess-cycle'),{type:'line',data:{labels:[...L],datasets:[{label:'SoC%',data:[...shist],borderColor:'#10b981',backgroundColor:ctx=>{const g=ctx.chart.ctx.createLinearGradient(0,0,0,200);g.addColorStop(0,'rgba(16,185,129,.28)');g.addColorStop(1,'rgba(16,185,129,.0)');return g;},fill:true,tension:.3,pointRadius:0,borderWidth:2}]},options:{...bo('SoC%'),scales:{...bo('SoC%').scales,y:{...bo('SoC%').scales.y,min:0,max:100}}}});
+  // Solar uncertainty ribbons
+  CHARTS.solar=new Chart(document.getElementById('solar-uncert'),{type:'line',data:{labels:H24.L,datasets:[
+    {label:'P90',data:H24.P90,borderColor:'rgba(251,191,36,.35)',backgroundColor:'rgba(251,191,36,.1)',fill:'+1',tension:.4,pointRadius:0,borderWidth:1,borderDash:[3,2]},
+    {label:'P50',data:H24.P50,borderColor:'#f59e0b',fill:false,tension:.4,pointRadius:0,borderWidth:2.5},
+    {label:'P10',data:H24.P10,borderColor:'rgba(217,119,6,.35)',backgroundColor:'rgba(217,119,6,.08)',fill:'-1',tension:.4,pointRadius:0,borderWidth:1,borderDash:[3,2]},
+    {label:'Actual',data:hist.slice(0,H24.L.length).map(h=>h.s),borderColor:'rgba(239,68,68,.65)',fill:false,tension:.3,pointRadius:0,borderWidth:1.5,borderDash:[2,3]},
+  ]},options:bo('MW')});
+  // Irradiance
+  CHARTS.irr=new Chart(document.getElementById('irr-chart'),{type:'line',data:{labels:H24.L,datasets:[{label:'Irr',data:H24.IRR,borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.13)',fill:true,tension:.4,pointRadius:0,borderWidth:2}]},options:bo('W/m²')});
+  // Forecast error width
+  const ed=H24.L.map((_,i)=>+(H24.P90[i]-H24.P10[i]).toFixed(2));
+  CHARTS.fcErr=new Chart(document.getElementById('fc-error'),{type:'bar',data:{labels:H24.L,datasets:[{label:'Interval',data:ed,backgroundColor:ed.map(v=>v>1.5?'rgba(239,68,68,.5)':v>.8?'rgba(245,158,11,.5)':'rgba(16,185,129,.5)'),borderRadius:2}]},options:bo('MW spread')});
+}
+
+// ══ COLOR HELPERS ══════════════════════════════════════════════════════════
+function sc(s){return s>=.75?'#dc2626':s>=.5?'#d97706':'#16a34a';}
+function sl(s){return s>=.75?'CRITICAL':s>=.5?'STRESSED':'NOMINAL';}
+function fc2(hz){return Math.abs(hz-50)>=.3?'#dc2626':Math.abs(hz-50)>=.15?'#d97706':'#10b981';}
+
+// ══ RENDER HOME ════════════════════════════════════════════════════════════
+function rHome(t){
+  document.getElementById('h-solar').textContent=t.s;
+  document.getElementById('h-demand').textContent=t.d;
+  document.getElementById('h-soc').textContent=t.soc;
+  document.getElementById('h-freq').textContent=t.fr;
+  const imEl=document.getElementById('h-imbal');
+  imEl.textContent=(t.im>=0?'+':'')+t.im;
+  imEl.style.color=Math.abs(t.im)>200?'#ef4444':Math.abs(t.im)>80?'#f59e0b':'#4ade80';
+  const fEl=document.getElementById('h-fault');
+  if(t.fault){fEl.textContent=t.fault.replace(/_/g,' ').toUpperCase();fEl.style.color='#f87171';}
+  else{fEl.textContent=t.duck?'DUCK CURVE':'NOMINAL';fEl.style.color=t.duck?'#fbbf24':'#4ade80';}
+  updateModuleLiveValues(t);
+}
+
+// ══ RENDER DASHBOARD ══════════════════════════════════════════════════════
+function rDash(t){
+  document.getElementById('hdr-time').textContent=t.ts;
+  document.getElementById('kpi-demand').textContent=t.d+' MW';
+  document.getElementById('kpi-solar').textContent=t.s+' MW';
+  document.getElementById('kpi-solar-pct').textContent=`${((t.s/5040)*100).toFixed(0)}% of 5040 MW cap`;
+  document.getElementById('kpi-solar-bar').style.width=`${Math.min((t.s/5040)*100,100)}%`;
+  const ic=Math.abs(t.im)>200?'#ef4444':Math.abs(t.im)>80?'#f59e0b':'#10b981';
+  const ie=document.getElementById('kpi-imbal');ie.textContent=(t.im>=0?'+':'')+t.im+' MW';ie.style.color=ic;
+  document.getElementById('kpi-imbal-sub').textContent=t.im>50?'Surplus — BESS charging':t.im<-50?'Deficit — BESS discharging':'Balanced';
+  document.getElementById('kpi-bess-res').textContent=((t.soc/100)*500).toFixed(0)+' MWh';
+  document.getElementById('kpi-bess-sub').textContent=`SoC ${t.soc}%  ·  ${t.b>=0?'↑ Dis':'↓ Chg'} ${Math.abs(t.b).toFixed(1)} MW`;
+  document.getElementById('kpi-soc-bar').style.width=t.soc+'%';
+  document.getElementById('kpi-soc-bar').style.background=t.soc<20?'#ef4444':t.soc<40?'#d97706':'#10b981';
+  const fclr=fc2(t.fr);
+  const fe=document.getElementById('kpi-freq');fe.textContent=t.fr+' Hz';fe.style.color=fclr;
+  document.getElementById('kpi-freq-sub').textContent=`Dev ${(t.fr-50)>=0?'+':''}${(t.fr-50).toFixed(3)} Hz`;
+  const dev=(t.fr-50)/.5;const fb=document.getElementById('freq-bar');fb.style.background=fclr;
+  if(dev>=0){fb.style.left='50%';fb.style.width=`${Math.min(dev*50,50)}%`;fb.style.right='';}
+  else{const w=Math.min(-dev*50,50);fb.style.right=`${50-w}%`;fb.style.left='';fb.style.width=w+'%';}
+  const db=document.getElementById('duck-ban-main');
+  if(t.duck){db.classList.add('show');document.getElementById('duck-txt-main').textContent=`Solar ${t.s} MW vs Demand ${t.d} MW. Evening ramp active. BESS at max discharge.`;}
+  else db.classList.remove('show');
+  document.getElementById('sb-tick').textContent=t.tick;
+  const sf=document.getElementById('sb-fault');sf.textContent=t.fault?t.fault.replace(/_/g,' ').toUpperCase():'NONE';sf.className=t.fault?'tcrit':'tok';
+  document.getElementById('sb-solar').textContent=t.s+' MW';
+  document.getElementById('sb-demand').textContent=t.d+' MW';
+  document.getElementById('sb-bess').textContent=(t.b>=0?'+':'')+t.b+' MW';
+  document.getElementById('sb-soc').textContent=t.soc+'%';
+  document.getElementById('sb-freq').textContent=t.fr+' Hz';
+  const ds=document.getElementById('sb-duck');ds.textContent=t.duck?'ACTIVE':'CLEAR';ds.className=t.duck?'twarn':'tok';
+  // Push to main chart
+  CHARTS.main.data.labels.push(t.tsl);
+  [t.s,t.d,t.b,t.fr].forEach((v,i)=>CHARTS.main.data.datasets[i].data.push(v));
+  if(CHARTS.main.data.labels.length>80){CHARTS.main.data.labels.shift();CHARTS.main.data.datasets.forEach(ds=>ds.data.shift());}
+  CHARTS.main.update('none');
+}
+
+// ══ RENDER DUCK ══════════════════════════════════════════════════════════
+function rDuck(t){
+  document.getElementById('dc-solar').textContent=t.s+' MW';
+  document.getElementById('dc-demand').textContent=t.d+' MW';
+  document.getElementById('dc-bess').textContent=(t.b>=0?'+':'')+t.b+' MW';
+  document.getElementById('dc-imbal').textContent=(t.im>=0?'+':'')+t.im+' MW';
+  if(t.duck){document.getElementById('duck-ban-duck').classList.add('show');document.getElementById('duck-txt-duck').textContent=`Solar ${t.s} MW vs Demand ${t.d} MW. BESS compensating.`;}
+  else document.getElementById('duck-ban-duck').classList.remove('show');
+  CHARTS.duck.data.labels.push(t.tsl);
+  [t.s,t.d,t.b,t.im].forEach((v,i)=>CHARTS.duck.data.datasets[i].data.push(v));
+  CHARTS.duck.data.datasets[2].backgroundColor.push(t.b>0?'rgba(16,185,129,.6)':'rgba(59,130,246,.6)');
+  if(CHARTS.duck.data.labels.length>80){CHARTS.duck.data.labels.shift();CHARTS.duck.data.datasets.forEach(ds=>{ds.data.shift();if(Array.isArray(ds.backgroundColor))ds.backgroundColor.shift();});}
+  CHARTS.duck.update('none');
+  CHARTS.duckSc.data.datasets[0].data.push({x:t.im,y:t.b});
+  if(CHARTS.duckSc.data.datasets[0].data.length>60)CHARTS.duckSc.data.datasets[0].data.shift();
+  CHARTS.duckSc.update('none');
+}
+
+// ══ RENDER FREQ ══════════════════════════════════════════════════════════
+function rFreq(t){
+  const dev=+(t.fr-50).toFixed(3);
+  const rocof=+(t.fr-SIM.prevFreq).toFixed(3);
+  SIM.prevFreq=t.fr;
+  const fclr=fc2(t.fr);
+  document.getElementById('freq-live-big').textContent=t.fr+' Hz';
+  document.getElementById('freq-live-big').style.color=fclr;
+  document.getElementById('fq-hz').textContent=t.fr;document.getElementById('fq-hz').style.color=fclr;
+  document.getElementById('fq-dev').textContent=(dev>=0?'+':'')+dev;document.getElementById('fq-dev').style.color=fclr;
+  document.getElementById('fq-rocof').textContent=(rocof>=0?'+':'')+rocof;
+  document.getElementById('fq-droop').textContent=((-dev*1000)>=0?'+':'')+((-dev*1000).toFixed(0))+' MW';
+  const bd=document.getElementById('freq-badge');
+  if(Math.abs(dev)>=.3){bd.className='sbadge sb-crit';bd.textContent='ALARM';}
+  else if(Math.abs(dev)>=.15){bd.className='sbadge sb-warn';bd.textContent='WARNING';}
+  else{bd.className='sbadge sb-ok';bd.textContent='NOMINAL';}
+  CHARTS.freq.data.labels.push(t.tsl);
+  CHARTS.freq.data.datasets[0].data.push(t.fr);
+  if(CHARTS.freq.data.labels.length>80){CHARTS.freq.data.labels.shift();CHARTS.freq.data.datasets[0].data.shift();}
+  CHARTS.freq.update('none');
+  const bins=[0,0,0,0,0,0,0];
+  fhist.forEach(f=>{if(f<49.5)bins[0]++;else if(f<49.7)bins[1]++;else if(f<49.9)bins[2]++;else if(f<50.1)bins[3]++;else if(f<50.3)bins[4]++;else if(f<50.5)bins[5]++;else bins[6]++;});
+  CHARTS.freqHist.data.datasets[0].data=bins;CHARTS.freqHist.update('none');
+}
+
+// ══ RENDER BESS ══════════════════════════════════════════════════════════
+function rBess(t){
+  const soc=t.soc,b=t.b;
+  const temp=(25+Math.abs(b)*.05+(soc<20?8:0)).toFixed(1);
+  const degrad=(0.99-(100-soc)*.0002).toFixed(4);
+  const status=b>10?'DISCHARGING':b<-10?'CHARGING':'STANDBY';
+  const sc2=soc<20?'#ef4444':soc<40?'#d97706':'#10b981';
+  const dc=b>10?'#f59e0b':b<-10?'#3b82f6':'#10b981';
+  document.getElementById('bq-soc').textContent=soc+'%';document.getElementById('bq-soc').style.color=sc2;
+  document.getElementById('bq-soc-sub').textContent=((soc/100)*500).toFixed(0)+' MWh avail';
+  document.getElementById('bq-soc-bar').style.width=soc+'%';document.getElementById('bq-soc-bar').style.background=sc2;
+  document.getElementById('bq-dispatch').textContent=(b>=0?'+':'')+b+' MW';document.getElementById('bq-dispatch').style.color=dc;
+  document.getElementById('bq-dsp-sub').textContent=status;
+  document.getElementById('bq-temp').textContent=temp+' °C';document.getElementById('bq-temp').style.color=parseFloat(temp)>45?'#ef4444':'#e2e8f0';
+  document.getElementById('bq-degrad').textContent=degrad;
+  document.getElementById('b-reserve').textContent=((soc/100)*500).toFixed(0)+' MWh';
+  document.getElementById('b-charge').textContent=(b<0?Math.abs(b).toFixed(1):0)+' MW charging';
+  document.getElementById('b-discharge').textContent=(b>0?b.toFixed(1):0)+' MW discharging';
+  document.getElementById('b-status').textContent=status;document.getElementById('b-status').style.color=dc;
+  document.getElementById('b-temp').textContent=temp+' °C';document.getElementById('b-degrad').textContent=degrad;
+  document.getElementById('b-freq').textContent=t.fr+' Hz';document.getElementById('b-imbal').textContent=(t.im>=0?'+':'')+t.im+' MW';
+  document.getElementById('b-cycles').textContent=(Math.floor(soc/12)+2)+' cycles';
+  const al=251.3,dl=al*(soc/100);
+  document.getElementById('soc-arc').setAttribute('stroke-dasharray',`${dl} 1000`);
+  document.getElementById('soc-arc').setAttribute('stroke',sc2);
+  document.getElementById('soc-num').textContent=soc.toFixed(1);document.getElementById('soc-num').style.color=sc2;
+  shist.push(soc);thist.push(parseFloat(temp));
+  if(shist.length>60){shist.shift();thist.shift();}
+  CHARTS.socDual.data.datasets[0].data=[...shist];CHARTS.socDual.data.datasets[1].data=[...thist];CHARTS.socDual.update('none');
+  CHARTS.bessCycle.data.labels.push(t.tsl);CHARTS.bessCycle.data.datasets[0].data.push(soc);
+  if(CHARTS.bessCycle.data.labels.length>80){CHARTS.bessCycle.data.labels.shift();CHARTS.bessCycle.data.datasets[0].data.shift();}
+  CHARTS.bessCycle.update('none');
+}
+
+// ══ RENDER SOLAR ══════════════════════════════════════════════════════════
+function rSolar(t){
+  const sp=t.s>1?t.s*.18:.1;
+  const p90=+(t.s+sp).toFixed(1),p10=+(Math.max(0,t.s-sp)).toFixed(1);
+  const conf=t.fault==='cloud_cover'?`${Math.floor(60+Math.random()*15)}%`:`${Math.floor(82+Math.random()*12)}%`;
+  document.getElementById('sf-p50').textContent=t.s+' MW';
+  document.getElementById('sf-p90').textContent=p90+' MW';
+  document.getElementById('sf-p10').textContent=p10+' MW';
+  document.getElementById('sf-conf').textContent=conf;
+}
+
+// ══ RENDER TOPOLOGY ══════════════════════════════════════════════════════
+let selSub=null;
+const SVG_W=580,SVG_H=400;
+function ll(lat,lng){return[((lng-68.1)/(74.5-68.1))*SVG_W,((24.7-lat)/(24.7-20.1))*SVG_H];}
+
+function rTopology(){
+  const subs=SIM.subs;
+  let nom=0,str=0,crit=0;
+  for(const s of Object.values(subs)){if(s.stress>=.75)crit++;else if(s.stress>=.5)str++;else nom++;}
+  document.getElementById('topo-nom').textContent=`${nom} Nominal`;
+  document.getElementById('topo-str').textContent=`${str} Stressed`;
+  document.getElementById('topo-crit').textContent=`${crit} Critical`;
+  const ids=Object.keys(subs);let lines='',nodes='';
+  for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++){
+    const[x1,y1]=ll(subs[ids[i]].lat,subs[ids[i]].lng),[x2,y2]=ll(subs[ids[j]].lat,subs[ids[j]].lng);
+    const d=Math.hypot(x2-x1,y2-y1);if(d>200)continue;
+    const ms=Math.max(subs[ids[i]].stress,subs[ids[j]].stress);
+    lines+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${sc(ms)}" stroke-width="${ms>.7?1.5:.5}" stroke-opacity=".28" ${ms>.75?'stroke-dasharray="4,3"':''}/>`;
+  }
+  ids.forEach(id=>{
+    const sub=subs[id],[cx,cy]=ll(sub.lat,sub.lng),color=sc(sub.stress),isSel=selSub===id,r=isSel?11:7;
+    let pulse='';
+    if(sub.stress>=.75)pulse=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r+8}" fill="${color}" opacity=".09"><animate attributeName="r" values="${r+5};${r+14};${r+5}" dur="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".18;0;.18" dur="2s" repeatCount="indefinite"/></circle>`;
+    nodes+=`${pulse}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${color}" opacity=".9" stroke="${isSel?'#fff':'none'}" stroke-width="2" style="cursor:pointer" onclick="selSub2('${id}')"/><text x="${(cx+r+3).toFixed(1)}" y="${(cy+4).toFixed(1)}" font-size="9" fill="#2a3f5a" style="pointer-events:none">${id}</text>`;
+  });
+  document.getElementById('topo-svg').innerHTML=lines+nodes;
+  // Heatmap grid
+  const sorted=Object.entries(subs).sort(([,a],[,b])=>b.stress-a.stress);
+  document.getElementById('heatmap-grid').innerHTML=sorted.map(([id,sub])=>{
+    const c=sc(sub.stress),a=.15+sub.stress*.7;
+    return`<div style="background:${c}${Math.round(a*255).toString(16).padStart(2,'0')};border:1px solid ${c}55;border-radius:8px;padding:7px 4px;text-align:center;cursor:pointer;transition:transform .15s" onmouseenter="this.style.transform='scale(1.06)'" onmouseleave="this.style.transform=''" onclick="selSub2('${id}')"><div style="font-size:10px;font-weight:700;font-family:monospace;color:${c}">${id}</div><div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:1px">${(sub.stress*100).toFixed(0)}%</div></div>`;
+  }).join('');
+  // Sub list
+  document.getElementById('sub-list').innerHTML=sorted.map(([id,sub])=>{
+    const c=sc(sub.stress);
+    return`<div class="sub-li" onclick="selSub2('${id}')"><span style="width:6px;height:6px;border-radius:50%;background:${c};flex-shrink:0;display:inline-block"></span><span style="font-family:monospace;font-weight:700;color:#94a3b8;width:32px">${id}</span><span style="flex:1;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub.name}</span><span style="font-family:monospace;font-weight:700;color:${c}">${(sub.stress*100).toFixed(0)}%</span></div>`;
+  }).join('');
+}
+
+function selSub2(id){
+  selSub=selSub===id?null:id;
+  const sub=SIM.subs[id];if(!sub)return;
+  const c=sc(sub.stress),label=sl(sub.stress);
+  document.getElementById('topo-detail').innerHTML=`
+    <div class="card-hdr"><div class="card-title">Substation Detail</div></div>
+    <div class="cbody">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div><div style="font-weight:700;color:#fff;font-size:14px">${id}</div><div style="font-size:10px;color:var(--muted)">${sub.name}</div></div>
+        <span class="sbadge" style="background:${c}22;color:${c};border:1px solid ${c}55">${label}</span>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--muted)">Stress</span><span style="font-family:monospace;font-weight:700;color:${c}">${(sub.stress*100).toFixed(1)}%</span></div>
+        <div style="height:7px;background:#162236;border-radius:3px;overflow:hidden"><div style="height:100%;background:linear-gradient(90deg,${c}88,${c});border-radius:3px;width:${(sub.stress*100).toFixed(1)}%"></div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted)"><span>Coordinates</span><span style="font-family:monospace">${sub.lat}°N, ${sub.lng}°E</span></div>
+    </div>`;
+}
+
+// ══ AGENTS ════════════════════════════════════════════════════════════════
+const AGENTS=[
+  {id:'solar',  name:'Solar Forecasting Agent',     icon:'☀️', color:'#f59e0b', role:'Irradiance & cloud-cover tracking'},
+  {id:'load',   name:'Industrial Load Forecaster',  icon:'🏭', color:'#3b82f6', role:'Peak demand & shift schedules'},
+  {id:'bess',   name:'BESS Optimizer Agent',        icon:'🔋', color:'#10b981', role:'Charge/discharge & cycle wear'},
+  {id:'anomaly',name:'Outage & Anomaly Detector',   icon:'⚠️', color:'#ef4444', role:'Feeder risk & transformer thermal'},
+  {id:'orch',   name:'Master Grid Orchestrator',    icon:'🧠', color:'#8b5cf6', role:'AC power flow & dispatch decisions'},
+];
+function pk(a){return a[Math.floor(Math.random()*a.length)];}
+let _lastReasoning={};
+
+function agReasoning(t){
+  const hs=Object.entries(SIM.subs).filter(([,v])=>v.stress>=.75).map(([k])=>k);
+  const r={
+    solar:{st:t.fault==='cloud_cover'?'WARN':'OK',m:`${t.s} MW`,c:+(.78+Math.random()*.18).toFixed(2),msg:t.fault==='cloud_cover'?`Cloud-cover detected. Irradiance ~${Math.round(t.s*238)} W/m². Revising forecast. Alerting BESS.`:pk([`Irradiance ${Math.round(t.s*238)} W/m². Next 1-hr: ${(t.s*.95).toFixed(1)}–${(t.s*1.05).toFixed(1)} MW.`,`DC-side temp: ${(42+Math.random()*16).toFixed(1)}°C. No curtailment required.`])},
+    load:{st:t.fault==='load_spike'?'CRITICAL':'OK',m:`${t.d} MW`,c:+(.85+Math.random()*.12).toFixed(2),msg:t.fault==='load_spike'?`Load surge at Surat Cluster: +${(18+Math.random()*12).toFixed(0)}%. Requesting emergency reserves.`:pk([`Shift change at 22:00 IST. Expected -${(300+Math.random()*200).toFixed(0)} MW.`,`Forecast accuracy: 94.2%. Morbi kilns at full load.`])},
+    bess:{st:t.soc<20||t.soc>90?'WARN':'OK',m:`SoC ${t.soc}%`,c:+(.88+Math.random()*.11).toFixed(2),msg:pk([`SoC: ${t.soc}%. ${t.b>0?'DISCHARGING':t.b<0?'CHARGING':'STANDBY'} at ${Math.abs(t.b).toFixed(1)} MW. Imbalance: ${t.im>0?'+':''}${t.im} MW.`,`Degrad index nominal. Eff: ${(91+Math.random()*4).toFixed(1)}%. Reserve: ${(t.soc*5).toFixed(0)} MWh.`])},
+    anomaly:{st:t.fault==='feeder_trip'?'CRITICAL':hs.length>0?'WARN':'OK',m:`${hs.length} stressed`,c:+(.82+Math.random()*.15).toFixed(2),msg:t.fault==='feeder_trip'?'FEEDER TRIP: G-12 Morbi offline. Rerouting G-09. Islanding risk HIGH.':hs.length>0?`Elevated stress on ${hs.join(', ')}.`:`All 12 substations nominal. Max stress: ${(Math.max(...Object.values(SIM.subs).map(v=>v.stress))*100).toFixed(0)}%.`},
+    orch:{st:t.fault==='feeder_trip'||t.fault==='load_spike'?'CRITICAL':t.duck||t.fault?'WARN':'OK',m:`${t.fr} Hz`,c:+(.90+Math.random()*.09).toFixed(2),msg:t.duck?`Duck curve active. ${t.im>0?'+':''}${t.im} MW deficit. BESS max discharge. Requesting Ukai HTPS.`:t.fault?`Fault '${t.fault.replace(/_/g,' ')}' active. BESS: ${t.b>0?'+':''}${t.b} MW. Freq: ${t.fr} Hz.`:`Grid stable. Freq ${t.fr} Hz (dev: ${(t.fr-50)>=0?'+':''}${(t.fr-50).toFixed(3)} Hz). All agents nominal.`},
+  };
+  _lastReasoning=r;
+  return r;
+}
+
+let termCount=0;
+function rAgents(t,r){
+  const grid=document.getElementById('ag-grid');
+  AGENTS.forEach(meta=>{
+    const re=r[meta.id];const st=re?.st||'OK';
+    let card=document.getElementById('agc-'+meta.id);
+    if(!card){card=document.createElement('div');card.id='agc-'+meta.id;card.className='ag-card';grid.appendChild(card);}
+    card.style.setProperty('--ac',meta.color);
+    card.className='ag-card'+(st==='CRITICAL'?' crit':st==='WARN'?' warn':'');
+    const bc=st==='CRITICAL'?'sb-crit':st==='WARN'?'sb-warn':'sb-ok';
+    const cp=re?(re.c*100).toFixed(0):0;
+    const cc=re&&re.c>.85?'#10b981':re&&re.c>.7?'#d97706':'#ef4444';
+    const dc2=st==='CRITICAL'?'#dc2626':st==='WARN'?'#d97706':'#16a34a';
+    card.innerHTML=`
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+        <div style="display:flex;gap:9px;align-items:flex-start">
+          <div style="width:32px;height:32px;border-radius:9px;background:${meta.color}20;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0">${meta.icon}</div>
+          <div><div style="font-size:12px;font-weight:700;color:#fff">${meta.name}</div><div style="font-size:10px;color:var(--muted);margin-top:1px">${meta.role}</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:5px"><div style="width:6px;height:6px;border-radius:50%;background:${dc2};box-shadow:0 0 5px ${dc2}"></div><span class="sbadge ${bc}">${st}</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:10px;color:var(--muted)">Latest</span><span style="font-family:monospace;font-size:14px;font-weight:700;color:${meta.color}">${re?.m||'—'}</span></div>
+      <div class="ag-msg">${re?.msg||'Awaiting…'}</div>
+      <div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:3px"><span>Confidence</span><span>${cp}%</span></div><div class="conf-bg"><div class="conf-fill" style="width:${cp}%;background:${cc}"></div></div></div>
+      <div style="font-size:9px;color:#1e3a5f;text-align:right;font-family:monospace">${t.ts} IST</div>`;
+  });
+  const cr=AGENTS.filter(a=>r[a.id]?.st==='CRITICAL').length;
+  const wn=AGENTS.filter(a=>r[a.id]?.st==='WARN').length;
+  document.getElementById('ag-summary').innerHTML=
+    `${cr?`<span class="sbadge sb-crit">${cr} CRIT</span>`:''}${wn?`<span class="sbadge sb-warn">${wn} WARN</span>`:''}<span class="sbadge sb-ok">${5-cr-wn} OK</span>`;
+  // Add one terminal line per tick
+  const rList=Object.entries(r);
+  const[rid,re]=rList[Math.floor(Math.random()*rList.length)];
+  const meta=AGENTS.find(a=>a.id===rid)||{name:rid,color:'#94a3b8'};
+  const mc=re.st==='CRITICAL'?'tcrit':re.st==='WARN'?'twarn':'tmuted';
+  const line=document.createElement('div');line.className='tl';
+  line.innerHTML=`<span style="color:#1e3a5f">[${t.ts}]</span> <span style="font-weight:700;color:${meta.color}">${meta.name}:</span> <span class="${mc}">${re.msg}</span>`;
+  const body=document.getElementById('term-body');body.appendChild(line);
+  termCount++;document.getElementById('term-cnt').textContent=termCount;
+  if(body.children.length>120)body.removeChild(body.firstChild);
+  body.scrollTop=body.scrollHeight;
+}
+
+// ══ FAULT CONTROLS ════════════════════════════════════════════════════════
+// Button groups per view: {prefix: [fault-keys present in that view]}
+const FAULT_BTN_MAP={
+  fb:['cloud','spike','feeder'],   // dashboard
+  dc:['cloud','spike'],            // duck
+  fc:['cloud','spike','feeder'],   // risk/topo
+  sf:['cloud'],                    // solar
+};
+const FAULT_KEY_MAP={cloud:'cloud_cover',spike:'load_spike',feeder:'feeder_trip'};
+
+function toggleFault(mode){SIM.fault=SIM.fault===mode?null:mode;updateFaultUI();}
+function clearFault(){SIM.fault=null;updateFaultUI();}
+
+function updateFaultUI(){
+  const f=SIM.fault;
+  // Toggle active styling on each known button
+  for(const[prefix,keys]of Object.entries(FAULT_BTN_MAP)){
+    keys.forEach(k=>{
+      const el=document.getElementById(prefix+'-'+k);
+      if(el)el.classList.toggle('on',f===FAULT_KEY_MAP[k]);
+    });
+    const clearEl=document.getElementById(prefix+'-clear');
+    if(clearEl)clearEl.style.display=f?'':'none';
+  }
+  document.getElementById('sb-fault-dot').classList.toggle('show',f!==null);
+}
+
+// ══ BESS OVERRIDE ═════════════════════════════════════════════════════════
+let manualOn=false;
+function toggleOverride(){
+  manualOn=!manualOn;SIM.manualOn=manualOn;
+  document.getElementById('tog-track').style.background=manualOn?'#1d4ed8':'#10b981';
+  document.getElementById('tog-thumb').style.left=manualOn?'23px':'3px';
+  document.getElementById('tog-lbl').textContent=manualOn?'Manual Override':'Autonomous AI';
+  document.getElementById('tog-lbl').style.color=manualOn?'#60a5fa':'#4ade80';
+  document.getElementById('ov-tag').style.display=manualOn?'':'none';
+  document.getElementById('ov-desc').textContent=manualOn?'Manual override active — AI bypassed':'Enable override to set dispatch';
+  document.getElementById('sp-slider').disabled=!manualOn;
+  document.getElementById('sp-reset').disabled=!manualOn;
+}
+function onSp(v){
+  v=+v;document.getElementById('sp-slider').value=v;SIM.sp=v;
+  const l=document.getElementById('sp-lbl');
+  l.textContent=`${v>=0?'+':''}${v} MW ${v>0?'(discharge)':v<0?'(charge)':'(standby)'}`;
+  l.style.color=v>0?'#f59e0b':v<0?'#60a5fa':'#94a3b8';
+}
+
+// ══ MAIN TICK ════════════════════════════════════════════════════════════
+let agTick=0;
+function tick(){
+  const t=simulate();
+  fhist.push(t.fr);if(fhist.length>80)fhist.shift();
+  hist.push({ts:t.tsl,s:t.s,dm:t.d,b:t.b,im:t.im,fr:t.fr});if(hist.length>80)hist.shift();
+  document.getElementById('sb-tick-mini').textContent=t.tick;
+  rHome(t);rDash(t);rDuck(t);rFreq(t);rBess(t);rSolar(t);rTopology();
+  agTick++;if(agTick%2===0){const r=agReasoning(t);rAgents(t,r);}
+}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  buildModuleGrid();
+  initCharts();
+  tick();
+  setInterval(tick,2000);
+});
+</script>
+</body>
+</html>
