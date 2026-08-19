@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Smart Grid Platform — Gujarat Energy OS</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;min-height:100vh;display:flex;overflow:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:#0f1629}
+::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:3px}
+
+/* SIDEBAR */
+#sidebar{width:230px;min-width:230px;background:#0f1629;border-right:1px solid #1e2d4a;display:flex;flex-direction:column;z-index:10}
+.logo{padding:18px 20px;border-bottom:1px solid #1e2d4a;display:flex;align-items:center;gap:10px}
+.logo-icon{width:32px;height:32px;background:#1d3a6e;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.logo-text{font-size:13px;font-weight:700;color:#fff;line-height:1.3}
+.logo-sub{font-size:10px;color:#475569;font-weight:400}
+.conn-bar{padding:8px 20px;border-bottom:1px solid #1e2d4a;font-size:11px;display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#16a34a;box-shadow:0 0 6px #16a34a;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px}
+.nav-btn{width:100%;text-align:left;padding:9px 12px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-family:inherit;display:flex;align-items:center;gap:10px;transition:all .15s;color:#94a3b8;background:transparent}
+.nav-btn:hover{background:rgba(255,255,255,.05);color:#e2e8f0}
+.nav-btn.active{background:#1d3a6e;color:#fff;font-weight:600}
+.nav-icon{font-size:15px;width:20px;text-align:center}
+.sidebar-footer{padding:14px 20px;border-top:1px solid #1e2d4a;font-size:10px;color:#475569;font-family:monospace}
+
+/* MAIN */
+#main{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+
+/* VIEWS */
+.view{display:none;flex-direction:column;min-height:100vh}
+.view.active{display:flex}
+
+/* HEADER */
+.view-header{padding:14px 24px;border-bottom:1px solid #1e2d4a;background:#0a0e1a;position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.view-title{font-size:16px;font-weight:700;color:#fff}
+.view-sub{font-size:11px;color:#64748b;margin-top:2px}
+.fault-btns{display:flex;gap:6px;flex-wrap:wrap}
+.fault-btn{padding:5px 12px;border-radius:8px;border:1px solid #1e2d4a;background:#111827;color:#94a3b8;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
+.fault-btn:hover{border-color:#3b82f6;color:#93c5fd}
+.fault-btn.active{background:#7f1d1d;border-color:#dc2626;color:#fca5a5}
+.fault-btn.clear{background:#14532d;border-color:#16a34a;color:#86efac}
+
+/* KPI GRID */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;padding:20px 24px}
+.kpi-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:16px;transition:border-color .2s}
+.kpi-card:hover{border-color:#2d4a7a}
+.kpi-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.kpi-icon{font-size:14px}
+.kpi-val{font-size:24px;font-weight:700;font-family:monospace;color:#fff;line-height:1}
+.kpi-sub{font-size:11px;color:#64748b;margin-top:4px}
+.kpi-bar-wrap{height:5px;background:#1e2d4a;border-radius:3px;margin-top:10px;overflow:hidden}
+.kpi-bar{height:100%;border-radius:3px;transition:width 1s}
+.kpi-alert{font-size:10px;color:#fbbf24;font-weight:700;margin-top:6px;display:flex;align-items:center;gap:4px}
+
+/* CHART SECTION */
+.chart-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:18px;margin:0 24px}
+.chart-title{font-size:13px;font-weight:600;color:#fff;margin-bottom:4px}
+.chart-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+.legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:#94a3b8}
+.legend-dot{width:10px;height:3px;border-radius:2px}
+
+/* STATUS BAR */
+.status-bar{background:#111827;border:1px solid #1e2d4a;border-radius:10px;margin:14px 24px;padding:10px 18px;display:flex;flex-wrap:wrap;gap:16px;font-size:11px;font-family:monospace;color:#64748b}
+.sb-item span{font-weight:700}
+.col-solar{color:#f59e0b}
+.col-demand{color:#ef4444}
+.col-bess{color:#10b981}
+.col-freq{color:#8b5cf6}
+.col-ok{color:#16a34a}
+.col-warn{color:#d97706}
+.col-crit{color:#dc2626}
+
+/* DUCK ALERT */
+#duck-alert{display:none;margin:0 24px 0;background:#431407;border:1px solid #b45309;border-radius:10px;padding:12px 16px;font-size:12px;color:#fcd34d}
+#duck-alert.show{display:block}
+.duck-title{font-weight:700;font-size:13px;color:#fbbf24;margin-bottom:4px}
+
+/* AGENTS VIEW */
+.agents-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;padding:18px 24px}
+.agent-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color .3s}
+.agent-card.warn{border-color:#78350f}
+.agent-card.critical{border-color:#7f1d1d}
+.agent-header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.agent-info{display:flex;gap:10px;align-items:flex-start}
+.agent-emoji{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.agent-name{font-size:13px;font-weight:700;color:#fff;line-height:1.3}
+.agent-role{font-size:10px;color:#64748b;margin-top:2px}
+.status-badge{font-size:10px;padding:2px 7px;border-radius:12px;border:1px solid;font-weight:700;font-family:monospace;white-space:nowrap}
+.badge-ok{background:#14532d33;color:#4ade80;border-color:#166534}
+.badge-warn{background:#78350f33;color:#fbbf24;border-color:#92400e}
+.badge-crit{background:#7f1d1d33;color:#f87171;border-color:#991b1b;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+.agent-metric{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+.agent-metric-val{font-family:monospace;font-weight:700;font-size:14px}
+.agent-msg{background:#0a0e1a;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;color:#94a3b8;line-height:1.6;min-height:56px}
+.conf-bar-wrap{margin-top:2px}
+.conf-label{display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-bottom:3px}
+.conf-bar-bg{height:4px;background:#1e2d4a;border-radius:2px;overflow:hidden}
+.conf-bar{height:100%;border-radius:2px;transition:width .7s}
+.agent-ts{font-size:10px;color:#475569;text-align:right;font-family:monospace}
+
+/* TERMINAL */
+.terminal{background:#050810;border:1px solid #1e2d4a;border-radius:12px;margin:0 24px 24px;display:flex;flex-direction:column;height:340px}
+.terminal-header{background:#0f1629;border-radius:12px 12px 0 0;border-bottom:1px solid #1e2d4a;padding:8px 14px;display:flex;align-items:center;gap:8px}
+.term-dots{display:flex;gap:5px}
+.td{width:11px;height:11px;border-radius:50%}
+.term-title{font-size:11px;font-family:monospace;color:#64748b;flex:1}
+.term-cursor{width:7px;height:14px;background:#4ade80;animation:blink 1.2s step-start infinite}
+#terminal-body{flex:1;overflow-y:auto;padding:10px 14px;font-family:monospace;font-size:11px;line-height:1.7}
+.term-line{animation:fadein .3s ease-out}
+@keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1}}
+.term-ts{color:#475569}
+.term-agent{font-weight:700}
+.term-msg-ok{color:#94a3b8}
+.term-msg-warn{color:#fcd34d}
+.term-msg-crit{color:#fca5a5}
+
+/* BESS VIEW */
+.bess-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;padding:18px 24px}
+@media(max-width:900px){.bess-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.bess-grid{grid-template-columns:1fr}}
+.bess-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:18px}
+.bess-card-title{font-size:13px;font-weight:700;color:#fff;margin-bottom:2px}
+.bess-card-sub{font-size:11px;color:#64748b;margin-bottom:16px}
+.soc-gauge-wrap{display:flex;flex-direction:column;align-items:center;margin:8px 0}
+.soc-arc{position:relative;width:160px;height:100px;overflow:hidden}
+.soc-arc svg{width:160px;height:160px;position:absolute;top:0;left:0}
+.soc-center{position:absolute;bottom:0;left:50%;transform:translateX(-50%);text-align:center}
+.soc-num{font-size:28px;font-weight:700;font-family:monospace}
+.soc-unit{font-size:11px;color:#64748b}
+.telem-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1e2d4a;font-size:12px}
+.telem-row:last-child{border:none}
+.telem-label{color:#64748b}
+.telem-val{font-family:monospace;font-weight:600}
+.slider-wrap{margin:12px 0}
+.slider-label{display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;margin-bottom:6px}
+.slider-val{font-family:monospace;font-weight:700}
+input[type=range]{width:100%;accent-color:#3b82f6}
+input[type=range]:disabled{opacity:.3}
+.override-toggle{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:600}
+.toggle-track{width:42px;height:22px;border-radius:11px;cursor:pointer;transition:background .2s;position:relative;border:none;outline:none}
+.toggle-thumb{width:16px;height:16px;background:#fff;border-radius:50%;position:absolute;top:3px;transition:left .2s}
+.reset-btn{width:100%;padding:8px;border-radius:8px;border:1px solid #1e2d4a;background:#0a0e1a;color:#94a3b8;font-size:12px;font-weight:600;cursor:pointer;margin-top:10px;font-family:inherit}
+.reset-btn:disabled{opacity:.3;cursor:default}
+
+/* TOPOLOGY VIEW */
+.topo-layout{display:grid;grid-template-columns:1fr 340px;gap:14px;padding:18px 24px}
+@media(max-width:900px){.topo-layout{grid-template-columns:1fr}}
+.topo-map-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;overflow:hidden}
+.topo-map-header{padding:12px 16px;border-bottom:1px solid #1e2d4a;display:flex;align-items:center;justify-content:space-between}
+.topo-map-title{font-size:13px;font-weight:700;color:#fff}
+.map-legend{display:flex;gap:12px;font-size:11px;color:#94a3b8}
+.ml-item{display:flex;align-items:center;gap:5px}
+.ml-dot{width:10px;height:10px;border-radius:50%}
+#topo-svg{width:100%;background:#070b14;display:block}
+.topo-right{display:flex;flex-direction:column;gap:14px}
+.detail-card{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:16px}
+.detail-empty{color:#475569;font-size:12px;text-align:center;padding:20px}
+.substations-list{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:14px;max-height:260px;overflow-y:auto}
+.sub-list-title{font-size:12px;font-weight:700;color:#fff;margin-bottom:10px}
+.sub-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:6px;cursor:pointer;font-size:11px;transition:background .15s}
+.sub-row:hover{background:rgba(255,255,255,.05)}
+.sub-row-id{font-family:monospace;font-weight:700;width:36px;color:#94a3b8}
+.sub-row-name{flex:1;color:#94a3b8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sub-row-pct{font-family:monospace;font-weight:700}
+.fault-controls{background:#111827;border:1px solid #1e2d4a;border-radius:12px;padding:14px}
+.fc-title{font-size:12px;font-weight:700;color:#fff;margin-bottom:4px}
+.fc-sub{font-size:11px;color:#64748b;margin-bottom:12px}
+.fc-btn{width:100%;text-align:left;padding:9px 12px;border-radius:8px;border:1px solid #1e2d4a;background:#0a0e1a;color:#94a3b8;font-size:11px;cursor:pointer;margin-bottom:6px;transition:all .15s;font-family:inherit}
+.fc-btn:hover{border-color:#3b82f6;color:#93c5fd}
+.fc-btn.active{background:#7f1d1d;border-color:#dc2626;color:#fca5a5}
+.fc-btn-label{font-weight:700}
+.fc-btn-desc{opacity:.7;font-size:10px;margin-top:2px}
+.fc-clear{background:#14532d;border-color:#16a34a;color:#86efac;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  SIDEBAR                                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="sidebar">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">SmartGrid<br><span class="logo-sub">Gujarat Energy OS</span></div>
+  </div>
+  <div class="conn-bar"><div class="dot"></div><span style="color:#4ade80">Live · Simulated</span><span id="fault-label" style="margin-left:auto;font-size:10px;color:#fbbf24;font-weight:700"></span></div>
+  <nav>
+    <button class="nav-btn active" onclick="switchView('dashboard')" id="nav-dashboard"><span class="nav-icon">⚡</span>Command Dashboard</button>
+    <button class="nav-btn" onclick="switchView('agents')" id="nav-agents"><span class="nav-icon">🤖</span>AI Control Center</button>
+    <button class="nav-btn" onclick="switchView('bess')" id="nav-bess"><span class="nav-icon">🔋</span>BESS Management</button>
+    <button class="nav-btn" onclick="switchView('topology')" id="nav-topology"><span class="nav-icon">🗺</span>Grid Topology</button>
+  </nav>
+  <div class="sidebar-footer">v1.0.0-prod<br>GUVNL Grid Ops Center<br>Tick #<span id="tick-counter">0</span></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  MAIN                                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="main">
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!--  VIEW 1: EXECUTIVE COMMAND DASHBOARD                                    -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="view active" id="view-dashboard">
+  <div class="view-header">
+    <div>
+      <div class="view-title">Executive Command Dashboard</div>
+      <div class="view-sub">Gujarat Unified Electricity Grid · SCADA Integration Layer · <span id="hdr-time" style="font-family:monospace">--:--:--</span> IST</div>
+    </div>
+    <div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:5px">Fault Simulation:</div>
+      <div class="fault-btns">
+        <button class="fault-btn" id="fb-cloud"   onclick="toggleFault('cloud_cover')">☁️ Cloud Cover</button>
+        <button class="fault-btn" id="fb-spike"   onclick="toggleFault('load_spike')">⚡ Load Spike</button>
+        <button class="fault-btn" id="fb-feeder"  onclick="toggleFault('feeder_trip')">🔴 Feeder Trip</button>
+        <button class="fault-btn clear" id="fb-clear" onclick="clearFault()" style="display:none">✓ Clear Fault</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Duck curve alert -->
+  <div style="padding:12px 24px 0">
+    <div id="duck-alert">
+      <div class="duck-title">⚠️ Duck Curve Event Detected</div>
+      <span id="duck-text"></span>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Grid Load<span class="kpi-icon">⚡</span></div>
+      <div class="kpi-val" id="kpi-demand">—</div>
+      <div class="kpi-sub">Real-time consumer demand</div>
+    </div>
+    <div class="kpi-card" id="kpi-solar-card">
+      <div class="kpi-label">Solar Generation<span class="kpi-icon">☀️</span></div>
+      <div class="kpi-val" id="kpi-solar">—</div>
+      <div class="kpi-sub" id="kpi-solar-pct">—</div>
+      <div class="kpi-bar-wrap"><div class="kpi-bar" id="kpi-solar-bar" style="background:#f59e0b;width:0%"></div></div>
+    </div>
+    <div class="kpi-card" id="kpi-imbal-card">
+      <div class="kpi-label">Net Imbalance ΔP<span class="kpi-icon">📊</span></div>
+      <div class="kpi-val" id="kpi-imbal">—</div>
+      <div class="kpi-sub" id="kpi-imbal-sub">—</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">BESS Reserve<span class="kpi-icon">🔋</span></div>
+      <div class="kpi-val" id="kpi-bess-res">—</div>
+      <div class="kpi-sub" id="kpi-bess-sub">—</div>
+      <div class="kpi-bar-wrap"><div class="kpi-bar" id="kpi-soc-bar" style="background:#10b981;width:0%"></div></div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Grid Frequency<span class="kpi-icon">📡</span></div>
+      <div class="kpi-val" id="kpi-freq" style="color:#8b5cf6">—</div>
+      <div class="kpi-sub" id="kpi-freq-sub">—</div>
+      <div class="kpi-bar-wrap" style="background:#1e2d4a;position:relative;height:5px;border-radius:3px;margin-top:10px">
+        <div style="position:absolute;left:50%;top:0;width:1px;height:100%;background:rgba(255,255,255,.3)"></div>
+        <div id="freq-bar" style="height:100%;border-radius:3px;position:absolute;transition:all .5s"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:9px;color:#475569;margin-top:2px"><span>49.5</span><span>50.0</span><span>50.5</span></div>
+    </div>
+  </div>
+
+  <!-- Load vs Generation Chart -->
+  <div class="chart-card">
+    <div class="chart-title">Real-Time Load vs. Generation Curve</div>
+    <div class="chart-sub">Solar output · Consumer demand · BESS dispatch · Grid frequency</div>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>Solar MW</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Demand MW</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#10b981;border-top:2px dashed #10b981;height:0"></div>BESS MW</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div>Freq Hz</div>
+    </div>
+    <canvas id="main-chart" height="280"></canvas>
+  </div>
+
+  <!-- Status bar -->
+  <div class="status-bar" style="margin-top:12px">
+    <div class="sb-item">TICK <span id="sb-tick" class="col-freq">0</span></div>
+    <div class="sb-item">FAULT <span id="sb-fault" class="col-ok">NONE</span></div>
+    <div class="sb-item">SOLAR <span id="sb-solar" class="col-solar">—</span></div>
+    <div class="sb-item">DEMAND <span id="sb-demand" class="col-demand">—</span></div>
+    <div class="sb-item">BESS <span id="sb-bess" class="col-bess">—</span></div>
+    <div class="sb-item">SOC <span id="sb-soc" class="col-bess">—</span></div>
+    <div class="sb-item">FREQ <span id="sb-freq" class="col-freq">—</span></div>
+    <div class="sb-item" style="margin-left:auto">Duck: <span id="sb-duck" class="col-ok">CLEAR</span></div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!--  VIEW 2: MULTI-AGENT AI CONTROL CENTER                                  -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="view" id="view-agents">
+  <div class="view-header">
+    <div>
+      <div class="view-title">Multi-Agent AI Control Center</div>
+      <div class="view-sub">5 autonomous agents · Real-time reasoning & dispatch negotiation</div>
+    </div>
+    <div style="display:flex;gap:6px" id="agent-summary"></div>
+  </div>
+  <div style="padding:14px 24px 6px">
+    <div style="font-size:13px;font-weight:700;color:#fff">Agent Status Matrix</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px">Live reasoning, confidence scores, and latest metrics per agent</div>
+  </div>
+  <div class="agents-grid" id="agents-grid"></div>
+  <div style="padding:0 24px 10px">
+    <div style="font-size:13px;font-weight:700;color:#fff">Agent Action Stream</div>
+    <div style="font-size:11px;color:#64748b;margin-top:2px;margin-bottom:10px">Real-time autonomous agent dispatch decisions and negotiations</div>
+  </div>
+  <div class="terminal">
+    <div class="terminal-header">
+      <div class="term-dots"><div class="td" style="background:#ff5f57"></div><div class="td" style="background:#ffbd2e"></div><div class="td" style="background:#28ca41"></div></div>
+      <div class="term-title">agent-action-stream · GUVNL Grid Control · <span id="term-count">0</span> events</div>
+      <div class="term-cursor"></div>
+    </div>
+    <div id="terminal-body"></div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!--  VIEW 3: BESS MANAGEMENT                                                -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="view" id="view-bess">
+  <div class="view-header">
+    <div>
+      <div class="view-title">BESS & Storage Management</div>
+      <div class="view-sub">Battery Energy Storage System · Gujarat Grid Stabilization Unit · 500 MWh / 250 MW</div>
+    </div>
+    <div class="override-toggle">
+      <span style="font-size:11px;color:#64748b">Control Mode:</span>
+      <button class="toggle-track" id="override-track" onclick="toggleOverride()" style="background:#10b981">
+        <div class="toggle-thumb" id="override-thumb" style="left:3px"></div>
+      </button>
+      <span id="override-label" style="color:#4ade80">Autonomous (AI)</span>
+    </div>
+  </div>
+  <div class="bess-grid">
+    <!-- SoC Gauge -->
+    <div class="bess-card">
+      <div class="bess-card-title">State of Charge</div>
+      <div class="bess-card-sub">Battery bank energy level</div>
+      <div class="soc-gauge-wrap">
+        <div class="soc-arc">
+          <svg viewBox="0 0 160 160" id="soc-svg">
+            <path d="M 20 130 A 60 60 0 1 1 140 130" stroke="#1e2d4a" stroke-width="14" fill="none" stroke-linecap="round"/>
+            <path id="soc-arc-fg" d="M 20 130 A 60 60 0 1 1 140 130" stroke="#10b981" stroke-width="14" fill="none" stroke-linecap="round" stroke-dasharray="0 1000"/>
+          </svg>
+          <div class="soc-center">
+            <div class="soc-num" id="soc-num" style="color:#10b981">65.0</div>
+            <div class="soc-unit">% SoC</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:14px">
+        <div class="telem-row"><span class="telem-label">Reserve Capacity</span><span class="telem-val col-bess" id="b-reserve">325 MWh</span></div>
+        <div class="telem-row"><span class="telem-label">Charge Rate</span><span class="telem-val" id="b-charge" style="color:#3b82f6">0 MW</span></div>
+        <div class="telem-row"><span class="telem-label">Discharge Rate</span><span class="telem-val col-solar" id="b-discharge">0 MW</span></div>
+      </div>
+    </div>
+    <!-- Telemetry -->
+    <div class="bess-card">
+      <div class="bess-card-title">Battery Telemetry</div>
+      <div class="bess-card-sub">Live cell & system parameters</div>
+      <div class="telem-row"><span class="telem-label">Cell Temperature</span><span class="telem-val" id="b-temp">34.2 °C</span></div>
+      <div class="telem-row"><span class="telem-label">Degradation Index</span><span class="telem-val col-bess" id="b-degrad">0.9920</span></div>
+      <div class="telem-row"><span class="telem-label">Grid Frequency</span><span class="telem-val col-freq" id="b-freq">50.000 Hz</span></div>
+      <div class="telem-row"><span class="telem-label">Net Imbalance</span><span class="telem-val" id="b-imbal">0 MW</span></div>
+      <div class="telem-row"><span class="telem-label">BESS Status</span><span class="telem-val col-bess" id="b-status">STANDBY</span></div>
+      <div class="telem-row"><span class="telem-label">Cycle Count Today</span><span class="telem-val" id="b-cycles">4 cycles</span></div>
+      <div class="telem-row"><span class="telem-label">Round-trip Eff.</span><span class="telem-val col-bess">93.4 %</span></div>
+      <div class="telem-row"><span class="telem-label">Nominal Capacity</span><span class="telem-val">500 MWh</span></div>
+      <div class="telem-row"><span class="telem-label">Max Discharge Rate</span><span class="telem-val">250 MW</span></div>
+    </div>
+    <!-- Manual Override + SoC chart -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="bess-card">
+        <div class="bess-card-title">Operator Setpoint <span id="override-active-tag" style="font-size:11px;color:#60a5fa;display:none">(ACTIVE)</span></div>
+        <div class="bess-card-sub" id="override-desc">Enable manual override to set custom dispatch</div>
+        <div class="slider-wrap">
+          <div class="slider-label"><span>Dispatch Setpoint</span><span class="slider-val" id="sp-label" style="color:#f59e0b">0 MW (standby)</span></div>
+          <input type="range" id="sp-slider" min="-250" max="250" step="5" value="0" disabled oninput="onSetpointChange(this.value)"/>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-top:3px"><span>-250 MW (charge)</span><span>0</span><span>+250 MW (discharge)</span></div>
+        </div>
+        <button class="reset-btn" id="sp-reset" onclick="onSetpointChange(0)" disabled>Reset to Standby (0 MW)</button>
+      </div>
+      <div class="bess-card" style="flex:1">
+        <div class="bess-card-title">SoC History</div>
+        <div class="bess-card-sub">Last 60 data points</div>
+        <canvas id="soc-chart" height="120"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<!--  VIEW 4: TOPOLOGY MAP                                                   -->
+<!-- ────────────────────────────────────────────────────────────────────── -->
+<div class="view" id="view-topology">
+  <div class="view-header">
+    <div>
+      <div class="view-title">Outage Risk & Grid Topology</div>
+      <div class="view-sub">12 substations monitored · Gujarat 220/400 kV backbone</div>
+    </div>
+    <div style="display:flex;gap:6px;font-size:11px">
+      <span style="padding:3px 10px;border-radius:6px;border:1px solid #166534;background:#14532d22;color:#4ade80" id="topo-nominal">0 Nominal</span>
+      <span style="padding:3px 10px;border-radius:6px;border:1px solid #92400e;background:#78350f22;color:#fbbf24" id="topo-stressed">0 Stressed</span>
+      <span style="padding:3px 10px;border-radius:6px;border:1px solid #991b1b;background:#7f1d1d22;color:#f87171" id="topo-critical">0 Critical</span>
+    </div>
+  </div>
+  <div class="topo-layout">
+    <div class="topo-map-card">
+      <div class="topo-map-header">
+        <span class="topo-map-title">Substation Topology — Gujarat</span>
+        <div class="map-legend">
+          <div class="ml-item"><div class="ml-dot" style="background:#16a34a"></div>Nominal</div>
+          <div class="ml-item"><div class="ml-dot" style="background:#d97706"></div>Stressed</div>
+          <div class="ml-item"><div class="ml-dot" style="background:#dc2626"></div>Critical</div>
+        </div>
+      </div>
+      <svg id="topo-svg" viewBox="0 0 560 400"></svg>
+    </div>
+    <div class="topo-right">
+      <div class="detail-card" id="topo-detail">
+        <div class="detail-empty">Click a substation node to inspect</div>
+      </div>
+      <div class="fault-controls">
+        <div class="fc-title">Fault Simulation Controls</div>
+        <div class="fc-sub">Inject fault scenarios to test autonomous self-healing</div>
+        <button class="fc-btn" id="fc-cloud" onclick="toggleFault('cloud_cover')">
+          <div class="fc-btn-label">☁️ Cloud Cover</div>
+          <div class="fc-btn-desc">Sudden irradiance drop on solar farms</div>
+        </button>
+        <button class="fc-btn" id="fc-spike" onclick="toggleFault('load_spike')">
+          <div class="fc-btn-label">⚡ Load Spike</div>
+          <div class="fc-btn-desc">Industrial demand surge at GIDC clusters</div>
+        </button>
+        <button class="fc-btn" id="fc-feeder" onclick="toggleFault('feeder_trip')">
+          <div class="fc-btn-label">🔴 Feeder Trip</div>
+          <div class="fc-btn-desc">G-12 Morbi Ceramics feeder offline</div>
+        </button>
+        <button class="fc-btn fc-clear" id="fc-clear-btn" onclick="clearFault()" style="display:none">✓ Clear All Faults</button>
+      </div>
+      <div class="substations-list">
+        <div class="sub-list-title">All Substations</div>
+        <div id="sub-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+// ══════════════════════════════════════════════════════════════════════════════
+//  SIMULATION ENGINE  (pure JS — mirrors backend/app/simulation/engine.py)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const SIM = {
+  tick: 0, faultMode: null, manualOverride: false, manualSetpoint: 0,
+  soc: 62, lastBess: 0,
+  substations: {
+    'G-01':{name:'Gandhinagar North', stress:.30, lat:23.22, lng:72.68},
+    'G-02':{name:'Ahmedabad Central', stress:.50, lat:23.03, lng:72.58},
+    'G-03':{name:'Surat Industrial',  stress:.70, lat:21.17, lng:72.83},
+    'G-04':{name:'Vadodara West',     stress:.40, lat:22.30, lng:73.20},
+    'G-05':{name:'Rajkot Solar Hub',  stress:.20, lat:22.30, lng:70.80},
+    'G-06':{name:'Bhavnagar Port',    stress:.60, lat:21.76, lng:72.15},
+    'G-07':{name:'Jamnagar Refinery', stress:.80, lat:22.47, lng:70.07},
+    'G-08':{name:'Mehsana Solar Farm',stress:.30, lat:23.60, lng:72.38},
+    'G-09':{name:'Anand Feeder-12',   stress:.45, lat:22.56, lng:72.95},
+    'G-10':{name:'Kutch Wind+Solar',  stress:.25, lat:23.73, lng:69.86},
+    'G-11':{name:'Navsari Coastal',   stress:.55, lat:20.95, lng:72.93},
+    'G-12':{name:'Morbi Ceramics',    stress:.65, lat:22.82, lng:70.84},
+  }
+};
+
+function randn(mean=0, std=1){
+  let u=0,v=0;
+  while(u===0) u=Math.random();
+  while(v===0) v=Math.random();
+  return mean + std * Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+function solarIrradiance(hour, fault){
+  if(hour<6||hour>19) return 0;
+  let base = 1200*Math.exp(-0.5*((hour-13)/2.8)**2);
+  if(fault==='cloud_cover') base *= 0.1+Math.random()*0.25;
+  return Math.max(0, base + randn(0,30));
+}
+
+function demandProfile(hour, fault){
+  const mp = 3800*Math.exp(-0.5*((hour-8.5)/1.5)**2);
+  const ep = 4200*Math.exp(-0.5*((hour-20.0)/1.8)**2);
+  let total = 2200 + mp + ep + randn(0,80);
+  if(fault==='load_spike') total *= 1.18+Math.random()*0.17;
+  return Math.max(1800, total);
+}
+
+function bessDispatch(solar, demand, soc, fault, manual, sp){
+  if(manual) return sp;
+  let imbalance = demand - solar;
+  if(fault==='feeder_trip') imbalance += 300+Math.random()*300;
+  const maxDis = Math.min(250, soc*2.5);
+  const maxChg = Math.min(200, (100-soc)*2.0);
+  if(imbalance>50)  return Math.min(imbalance*0.7, maxDis);
+  if(imbalance<-80) return Math.max(imbalance*0.6, -maxChg);
+  return 0;
+}
+
+function gridFreq(imbalance){
+  return +(50 + (-imbalance/1000)*0.5 + randn(0,0.012)).toFixed(3);
+}
+
+function nowIST(){
+  const d = new Date(Date.now() + (5.5*3600*1000));
+  return d.toISOString().replace('T',' ').split('.')[0]+' IST';
+}
+function timeIST(){
+  const d = new Date(Date.now() + (5.5*3600*1000));
+  const h=d.getUTCHours(), m=d.getUTCMinutes(), s=d.getUTCSeconds();
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function hourIST(){
+  const d = new Date(Date.now() + (5.5*3600*1000));
+  return d.getUTCHours() + d.getUTCMinutes()/60;
+}
+
+function simulate(){
+  const hour     = hourIST();
+  const solarIrr = solarIrradiance(hour, SIM.faultMode);
+  const solarMW  = +(solarIrr * 4.2 / 1000).toFixed(1);
+  const demandMW = +(demandProfile(hour, SIM.faultMode) / 1000).toFixed(1);
+
+  SIM.soc -= (SIM.lastBess * 0.016);
+  SIM.soc  = clamp(SIM.soc, 10, 95);
+
+  const bessMW   = +bessDispatch(solarMW, demandMW, SIM.soc, SIM.faultMode, SIM.manualOverride, SIM.manualSetpoint).toFixed(1);
+  SIM.lastBess   = bessMW;
+
+  const netImbal = +(solarMW + bessMW - demandMW).toFixed(1);
+  const freq     = gridFreq(netImbal);
+  const duck     = (hour>=17 && hour<=21) && (solarMW < demandMW*0.25);
+
+  // Update substation stress
+  for(const [id,sub] of Object.entries(SIM.substations)){
+    let d = randn(0,0.025);
+    if(SIM.faultMode==='feeder_trip' && (id==='G-12'||id==='G-07')) d += 0.07;
+    sub.stress = clamp(sub.stress+d, 0.05, 0.99);
+  }
+
+  SIM.tick++;
+  return { tick:SIM.tick, solar_mw:solarMW, demand_mw:demandMW,
+           bess_dispatch_mw:bessMW, bess_soc_pct:+SIM.soc.toFixed(1),
+           net_imbalance_mw:netImbal, grid_frequency_hz:freq,
+           fault_mode:SIM.faultMode, duck_curve_alert:duck,
+           substations:{...SIM.substations}, timestamp:timeIST() };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  AGENT ENGINE
+// ══════════════════════════════════════════════════════════════════════════════
+
+const AGENTS = [
+  {id:'solar_forecaster', name:'Solar Forecasting Agent',         icon:'☀️', color:'#f59e0b', role:'Temporal irradiance & cloud-cover tracking'},
+  {id:'load_forecaster',  name:'Industrial Load Forecasting Agent',icon:'🏭', color:'#3b82f6', role:'Peak demand & industrial shift schedules'},
+  {id:'bess_optimizer',   name:'BESS Optimizer Agent',            icon:'🔋', color:'#10b981', role:'Optimal charge/discharge setpoints & cycle wear'},
+  {id:'anomaly_detector', name:'Outage & Anomaly Detection Agent', icon:'⚠️', color:'#ef4444', role:'Feeder risk score & transformer thermal load'},
+  {id:'grid_orchestrator',name:'Master Grid Orchestrator',         icon:'🧠', color:'#8b5cf6', role:'AC power flow validation & dispatch decisions'},
+];
+
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+function agentReasoning(tel){
+  const {solar_mw:s, demand_mw:d, bess_dispatch_mw:b, bess_soc_pct:soc,
+         net_imbalance_mw:im, grid_frequency_hz:freq, fault_mode:f,
+         duck_curve_alert:duck, substations:subs} = tel;
+
+  const highStress = Object.entries(subs).filter(([,v])=>v.stress>=0.75).map(([k])=>k);
+
+  const solar = {
+    agent_id:'solar_forecaster',
+    status: f==='cloud_cover'?'WARN':'OK',
+    metric:`${s} MW`,
+    confidence:+(0.78+Math.random()*0.18).toFixed(2),
+    message: f==='cloud_cover'
+      ? `Cloud-cover event detected. Irradiance dropped to ~${Math.round(s*1000/4.2)} W/m². Revising 1-hr forecast from ${(s+1.2).toFixed(1)} MW → ${s} MW. Alerting BESS Optimizer.`
+      : pick([`Irradiance nominal at ${Math.round(s*1000/4.2)} W/m². Next 1-hr: ${(s*0.95).toFixed(1)}–${(s*1.05).toFixed(1)} MW. Clear-sky confidence: 87%.`,
+              `Ramp-rate within safe bounds. DC-side temperature: ${(42+Math.random()*16).toFixed(1)}°C. No curtailment recommended.`,
+              `Bifacial gain adjustment: +${(3+Math.random()*4).toFixed(1)}%. Updated forecast passed to Orchestrator.`])
+  };
+
+  const load = {
+    agent_id:'load_forecaster',
+    status: f==='load_spike'?'CRITICAL':'OK',
+    metric:`${d} MW`,
+    confidence:+(0.85+Math.random()*0.12).toFixed(2),
+    message: f==='load_spike'
+      ? `Anomalous load surge at Surat Industrial Cluster: +${(18+Math.random()*12).toFixed(0)}% above baseline. New demand: ${d} MW. Requesting emergency reserves.`
+      : pick([`Industrial shift change at 22:00 IST. Expected reduction ${(300+Math.random()*200).toFixed(0)} MW. Current: ${d} MW.`,
+              `Demand forecast accuracy: 94.2%. Ceramic kilns in Morbi at full load. Plateau until 23:30 IST.`,
+              `Load diversity factor recalibrated. Residential AC demand +${(4+Math.random()*8).toFixed(0)}% due to heat advisory.`])
+  };
+
+  const bess_r = {
+    agent_id:'bess_optimizer',
+    status: soc<20||soc>90?'WARN':'OK',
+    metric:`SoC ${soc.toFixed(1)}%`,
+    confidence:+(0.88+Math.random()*0.11).toFixed(2),
+    message: pick([
+      `SoC: ${soc.toFixed(1)}%. ${b>0?'DISCHARGING':b<0?'CHARGING':'STANDBY'} at ${Math.abs(b).toFixed(1)} MW. Net imbalance ${im>0?'+':''}${im} MW. Cycle count: ${Math.floor(Math.random()*6)+2}.`,
+      `Degradation index: ${(0.91+Math.random()*0.08).toFixed(3)}. Cell Δtemp: ${(1.2+Math.random()*3.6).toFixed(1)}°C. ${soc<20?'SoC LOW — limiting discharge.':'Operating within optimal SoC band.'}`,
+      `Round-trip efficiency: ${(91+Math.random()*4).toFixed(1)}%. Dispatch confirmed by Orchestrator. Reserve: ${(soc*5).toFixed(0)} MWh.`
+    ])
+  };
+
+  const anomaly = {
+    agent_id:'anomaly_detector',
+    status: f==='feeder_trip'?'CRITICAL':highStress.length>0?'WARN':'OK',
+    metric:`${highStress.length} stressed`,
+    confidence:+(0.82+Math.random()*0.15).toFixed(2),
+    message: f==='feeder_trip'
+      ? `FEEDER TRIP DETECTED: G-12 Morbi Ceramics offline. Rerouting via G-09 Anand feeder. Islanding risk: HIGH. Alerting Orchestrator.`
+      : highStress.length>0
+        ? `Elevated stress on ${highStress.join(', ')}. Max: ${(Math.max(...Object.values(subs).map(v=>v.stress))*100).toFixed(0)}%. Preventive rescheduling advised.`
+        : pick([`All 12 substations nominal. Highest stress: ${(Math.max(...Object.values(subs).map(v=>v.stress))*100).toFixed(0)}%.`,
+                `Feeder health index: 96.2%. No anomalies in past 15 min. Predictive maintenance: G-03 in 72 hrs.`])
+  };
+
+  const orch = {
+    agent_id:'grid_orchestrator',
+    status: [load,anomaly].some(a=>a.status==='CRITICAL')?'CRITICAL':duck||f?'WARN':'OK',
+    metric:`${freq} Hz`,
+    confidence:+(0.90+Math.random()*0.09).toFixed(2),
+    message: duck
+      ? `Duck curve event active. Evening ramp: ${im>0?'+':''}${im} MW deficit. Dispatching BESS at max rate. Requesting spinning reserve at Ukai HTPS. Freq: ${freq} Hz.`
+      : f==='feeder_trip'
+        ? `CRITICAL: Feeder trip active. AC flow re-validated. Dispatch to BESS: ${b>0?'+':''}${b} MW. N-1 contingency protocol ACTIVE. Freq: ${freq} Hz.`
+        : f
+          ? `Fault '${f}' active. Adjusted dispatch issued. BESS: ${b>0?'+':''}${b} MW. Freq: ${freq} Hz (dev: ${(freq-50)>=0?'+':''}${(freq-50).toFixed(3)} Hz).`
+          : `Grid stable. Freq ${freq} Hz (dev: ${(freq-50)>=0?'+':''}${(freq-50).toFixed(3)} Hz). All agents nominal. Net imbalance: ${im>0?'+':''}${im} MW.`
+  };
+
+  return {solar, load, bess:bess_r, anomaly, orch};
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  STATE & HISTORY
+// ══════════════════════════════════════════════════════════════════════════════
+
+let history = [];        // rolling 60-pt chart window
+let socHistory = [];     // SoC sparkline
+let termCount = 0;
+let mainChart, socChart;
+let selectedSub = null;
+
+// Seed history
+(function seedHistory(){
+  for(let i=0;i<60;i++){
+    const h = (new Date(Date.now()+(5.5*3600*1000) - (60-i)*2000)).getUTCHours();
+    const hf = h + (new Date(Date.now()+(5.5*3600*1000) - (60-i)*2000)).getUTCMinutes()/60;
+    const s = +(solarIrradiance(hf,null)*4.2/1000).toFixed(1);
+    const d = +(demandProfile(hf,null)/1000).toFixed(1);
+    const b = +bessDispatch(s,d,65,null,false,0).toFixed(1);
+    const im= +(s+b-d).toFixed(1);
+    const ts= String(h).padStart(2,'0')+':'+String(new Date(Date.now()+(5.5*3600*1000)-(60-i)*2000).getUTCMinutes()).padStart(2,'0');
+    history.push({ts, solar:s, demand:d, bess:b, freq:gridFreq(im)});
+    socHistory.push(65);
+  }
+})();
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CHARTS INIT
+// ══════════════════════════════════════════════════════════════════════════════
+
+function initCharts(){
+  const chartOpts = {
+    animation:{duration:0}, responsive:true,
+    plugins:{legend:{display:false},tooltip:{
+      backgroundColor:'#0f1629', borderColor:'#1e2d4a', borderWidth:1,
+      titleColor:'#64748b', bodyColor:'#e2e8f0',
+      callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}`}
+    }},
+    scales:{
+      x:{ticks:{color:'#475569',font:{size:9},maxTicksLimit:8},grid:{color:'#1e2d4a'},border:{color:'#1e2d4a'}},
+      y:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#1e2d4a'},border:{color:'#1e2d4a'},title:{display:true,text:'MW',color:'#475569',font:{size:10}}},
+      y2:{position:'right',ticks:{color:'#8b5cf6',font:{size:9}},grid:{drawOnChartArea:false},min:49.3,max:50.7,border:{color:'#1e2d4a'},title:{display:true,text:'Hz',color:'#8b5cf6',font:{size:10}}}
+    }
+  };
+
+  const labels = history.map(h=>h.ts);
+  mainChart = new Chart(document.getElementById('main-chart'),{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Solar MW', data:history.map(h=>h.solar), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.12)', fill:true, tension:.3, pointRadius:0, borderWidth:2, yAxisID:'y'},
+        {label:'Demand MW',data:history.map(h=>h.demand),borderColor:'#ef4444', backgroundColor:'rgba(239,68,68,.08)',  fill:true, tension:.3, pointRadius:0, borderWidth:2, yAxisID:'y'},
+        {label:'BESS MW',  data:history.map(h=>h.bess),  borderColor:'#10b981', borderDash:[4,2],fill:false,tension:.3, pointRadius:0, borderWidth:1.5, yAxisID:'y'},
+        {label:'Freq Hz',  data:history.map(h=>h.freq),  borderColor:'#8b5cf6', fill:false,tension:.3,pointRadius:0,borderWidth:1.5,yAxisID:'y2'},
+      ]
+    }, options:chartOpts
+  });
+
+  socChart = new Chart(document.getElementById('soc-chart'),{
+    type:'line',
+    data:{
+      labels:Array(60).fill(''),
+      datasets:[{label:'SoC %',data:[...socHistory],borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',fill:true,tension:.3,pointRadius:0,borderWidth:2}]
+    },
+    options:{
+      animation:{duration:0}, responsive:true,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`SoC: ${ctx.parsed.y.toFixed(1)}%`}}},
+      scales:{
+        x:{display:false},
+        y:{min:0,max:100,ticks:{color:'#475569',font:{size:9}},grid:{color:'#1e2d4a'},border:{color:'#1e2d4a'}}
+      }
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function stressColor(s){ return s>=.75?'#dc2626':s>=.5?'#d97706':'#16a34a'; }
+function stressLabel(s){ return s>=.75?'CRITICAL':s>=.5?'STRESSED':'NOMINAL'; }
+function freqColor(hz){ const d=Math.abs(hz-50); return d>=.3?'#dc2626':d>=.15?'#d97706':'#10b981'; }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER: DASHBOARD
+// ══════════════════════════════════════════════════════════════════════════════
+
+function renderDashboard(tel){
+  const {solar_mw:s, demand_mw:d, bess_dispatch_mw:b, bess_soc_pct:soc,
+         net_imbalance_mw:im, grid_frequency_hz:freq, duck_curve_alert:duck,
+         fault_mode:f, tick, timestamp:ts} = tel;
+
+  document.getElementById('hdr-time').textContent = ts;
+  document.getElementById('tick-counter').textContent = tick;
+
+  // KPIs
+  document.getElementById('kpi-demand').textContent = d+' MW';
+  document.getElementById('kpi-solar').textContent  = s+' MW';
+  document.getElementById('kpi-solar-pct').textContent = `${((s/5040)*100).toFixed(0)}% of 5040 MW capacity`;
+  document.getElementById('kpi-solar-bar').style.width = `${(s/5040)*100}%`;
+
+  const imC = Math.abs(im)>200?'#ef4444':Math.abs(im)>80?'#f59e0b':'#10b981';
+  const imbalEl = document.getElementById('kpi-imbal');
+  imbalEl.textContent = (im>=0?'+':'')+im+' MW';
+  imbalEl.style.color = imC;
+  document.getElementById('kpi-imbal-sub').textContent = im>50?'Surplus — BESS charging':im<-50?'Deficit — BESS discharging':'Balanced';
+
+  const reserve = ((soc/100)*500).toFixed(0);
+  document.getElementById('kpi-bess-res').textContent = reserve+' MWh';
+  document.getElementById('kpi-bess-sub').textContent = `SoC ${soc.toFixed(1)}%  ·  ${b>=0?'↑ Discharge':'↓ Charge'} ${Math.abs(b).toFixed(1)} MW`;
+  const socBarColor = soc<20?'#ef4444':soc<40?'#d97706':'#10b981';
+  document.getElementById('kpi-soc-bar').style.width = `${soc}%`;
+  document.getElementById('kpi-soc-bar').style.background = socBarColor;
+
+  const fc = freqColor(freq);
+  const freqEl = document.getElementById('kpi-freq');
+  freqEl.textContent = freq.toFixed(3)+' Hz';
+  freqEl.style.color = fc;
+  document.getElementById('kpi-freq-sub').textContent = `Deviation ${(freq-50)>=0?'+':''}${(freq-50).toFixed(3)} Hz`;
+
+  // Frequency bar
+  const dev = (freq-50)/0.5; // -1 to +1
+  const bar = document.getElementById('freq-bar');
+  bar.style.background = fc;
+  if(dev>=0){ bar.style.left='50%'; bar.style.width=`${Math.min(dev*50,50)}%`; bar.style.right=''; }
+  else       { bar.style.right=`${50-Math.max(dev+1,0)*50}%`; bar.style.left=''; bar.style.width=`${Math.min(-dev*50,50)}%`; }
+
+  // Duck alert
+  const da = document.getElementById('duck-alert');
+  if(duck){
+    da.classList.add('show');
+    document.getElementById('duck-text').textContent = `Evening demand ramp active. Solar: ${s} MW, Demand: ${d} MW. Net imbalance: ${im} MW. BESS Optimizer discharging at max rate. Spinning reserve advisory issued to Ukai HTPS.`;
+  } else { da.classList.remove('show'); }
+
+  // Status bar
+  document.getElementById('sb-tick').textContent = tick;
+  const faultEl = document.getElementById('sb-fault');
+  faultEl.textContent = f?f.replace('_',' ').toUpperCase():'NONE';
+  faultEl.className = f?'col-crit':'col-ok';
+  document.getElementById('sb-solar').textContent  = s+' MW';
+  document.getElementById('sb-demand').textContent = d+' MW';
+  document.getElementById('sb-bess').textContent   = (b>=0?'+':'')+b+' MW';
+  document.getElementById('sb-soc').textContent    = soc+'%';
+  document.getElementById('sb-freq').textContent   = freq+' Hz';
+  const duckSt = document.getElementById('sb-duck');
+  duckSt.textContent = duck?'ACTIVE':'CLEAR';
+  duckSt.className   = duck?'col-warn':'col-ok';
+  document.getElementById('fault-label').textContent = f ? f.replace('_',' ').toUpperCase() : '';
+
+  // Chart update
+  const newTs = ts;
+  mainChart.data.labels.push(newTs);
+  mainChart.data.datasets[0].data.push(s);
+  mainChart.data.datasets[1].data.push(d);
+  mainChart.data.datasets[2].data.push(b);
+  mainChart.data.datasets[3].data.push(freq);
+  if(mainChart.data.labels.length>80){
+    mainChart.data.labels.shift();
+    mainChart.data.datasets.forEach(ds=>ds.data.shift());
+  }
+  mainChart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER: AGENTS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function renderAgents(reasoning){
+  const order = ['solar_forecaster','load_forecaster','bess_optimizer','anomaly_detector','grid_orchestrator'];
+  const rMap  = {solar_forecaster:reasoning.solar, load_forecaster:reasoning.load,
+                 bess_optimizer:reasoning.bess, anomaly_detector:reasoning.anomaly,
+                 grid_orchestrator:reasoning.orch};
+  const grid  = document.getElementById('agents-grid');
+  const cards = {};
+  order.forEach(id=>{
+    let card = document.getElementById('agent-card-'+id);
+    if(!card){
+      card = document.createElement('div');
+      card.className = 'agent-card'; card.id = 'agent-card-'+id;
+      grid.appendChild(card);
+    }
+    cards[id] = card;
+  });
+
+  let critN=0, warnN=0, okN=0;
+  order.forEach(id=>{
+    const meta = AGENTS.find(a=>a.id===id);
+    const r    = rMap[id];
+    const st   = r?.status||'OK';
+    if(st==='CRITICAL') critN++; else if(st==='WARN') warnN++; else okN++;
+    const card = cards[id];
+    card.className = 'agent-card'+(st==='CRITICAL'?' critical':st==='WARN'?' warn':'');
+    const badgeCls = st==='CRITICAL'?'badge-crit':st==='WARN'?'badge-warn':'badge-ok';
+    const confPct  = r ? (r.confidence*100).toFixed(0) : 0;
+    const confColor= r&&r.confidence>.85?'#10b981':r&&r.confidence>.7?'#d97706':'#ef4444';
+    card.innerHTML = `
+      <div class="agent-header">
+        <div class="agent-info">
+          <div class="agent-emoji" style="background:${meta.color}22">${meta.icon}</div>
+          <div><div class="agent-name">${meta.name}</div><div class="agent-role">${meta.role}</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="width:7px;height:7px;border-radius:50%;background:${st==='CRITICAL'?'#dc2626':st==='WARN'?'#d97706':'#16a34a'};box-shadow:0 0 6px ${st==='CRITICAL'?'#dc2626':st==='WARN'?'#d97706':'#16a34a'}"></div>
+          <span class="status-badge ${badgeCls}">${st}</span>
+        </div>
+      </div>
+      <div class="agent-metric"><span style="color:#64748b;font-size:12px">Latest metric</span><span class="agent-metric-val" style="color:${meta.color}">${r?.metric||'—'}</span></div>
+      <div class="agent-msg">${r?.message||'Awaiting first inference…'}</div>
+      <div class="conf-bar-wrap">
+        <div class="conf-label"><span>Confidence</span><span>${confPct}%</span></div>
+        <div class="conf-bar-bg"><div class="conf-bar" style="width:${confPct}%;background:${confColor}"></div></div>
+      </div>
+      <div class="agent-ts">${r?.timestamp||'--:--:--'} IST</div>`;
+  });
+
+  // Summary badges
+  const sum = document.getElementById('agent-summary');
+  sum.innerHTML = `
+    ${critN>0?`<span style="padding:3px 10px;border-radius:6px;border:1px solid #991b1b;background:#7f1d1d33;color:#f87171;font-size:11px;font-weight:700">${critN} CRITICAL</span>`:''}
+    ${warnN>0?`<span style="padding:3px 10px;border-radius:6px;border:1px solid #92400e;background:#78350f33;color:#fbbf24;font-size:11px;font-weight:700">${warnN} WARN</span>`:''}
+    <span style="padding:3px 10px;border-radius:6px;border:1px solid #166534;background:#14532d33;color:#4ade80;font-size:11px;font-weight:700">${okN} OK</span>`;
+}
+
+function addTerminalLine(reasoning){
+  const body = document.getElementById('terminal-body');
+  const rList = [reasoning.orch, reasoning.bess, reasoning.anomaly].filter(Boolean);
+  const r = rList[Math.floor(Math.random()*rList.length)];
+  if(!r) return;
+  const agentMeta = AGENTS.find(a=>a.id===r.agent_id)||{name:r.agent_id,color:'#94a3b8'};
+  const msgCls = r.status==='CRITICAL'?'term-msg-crit':r.status==='WARN'?'term-msg-warn':'term-msg-ok';
+  const line = document.createElement('div');
+  line.className = 'term-line';
+  line.innerHTML = `<span class="term-ts">[${r.timestamp||'--:--:--'}]</span> <span class="term-agent" style="color:${agentMeta.color}">${agentMeta.name}:</span> <span class="${msgCls}">${r.message}</span>`;
+  body.appendChild(line);
+  termCount++;
+  document.getElementById('term-count').textContent = termCount;
+  if(body.children.length>120){ body.removeChild(body.firstChild); }
+  body.scrollTop = body.scrollHeight;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER: BESS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function renderBess(tel){
+  const {bess_dispatch_mw:b, bess_soc_pct:soc, grid_frequency_hz:freq, net_imbalance_mw:im} = tel;
+  const reserve = ((soc/100)*500).toFixed(0);
+  const cellTemp = (25 + Math.abs(b)*0.05 + (soc<20?8:0)).toFixed(1);
+  const degrad   = (0.99-(100-soc)*0.0002).toFixed(4);
+  const cycles   = Math.floor(soc/12)+2;
+  const status   = b>10?'DISCHARGING':b<-10?'CHARGING':'STANDBY';
+  const statusColor = b>10?'#f59e0b':b<-10?'#3b82f6':'#10b981';
+
+  document.getElementById('b-reserve').textContent   = reserve+' MWh';
+  document.getElementById('b-charge').textContent    = (b<0?Math.abs(b).toFixed(1):0)+' MW (charging)';
+  document.getElementById('b-discharge').textContent = (b>0?b.toFixed(1):0)+' MW (discharging)';
+  document.getElementById('b-temp').textContent      = cellTemp+' °C';
+  document.getElementById('b-degrad').textContent    = degrad;
+  document.getElementById('b-freq').textContent      = freq.toFixed(3)+' Hz';
+  document.getElementById('b-imbal').textContent     = (im>=0?'+':'')+im+' MW';
+  document.getElementById('b-status').textContent    = status;
+  document.getElementById('b-status').style.color    = statusColor;
+  document.getElementById('b-cycles').textContent    = cycles+' cycles';
+
+  // SoC gauge (SVG arc)
+  const arcLen   = 251.3; // perimeter of the arc used
+  const dashLen  = arcLen * (soc/100);
+  document.getElementById('soc-arc-fg').setAttribute('stroke-dasharray', `${dashLen} 1000`);
+  const socColor = soc<20?'#ef4444':soc<40?'#d97706':'#10b981';
+  document.getElementById('soc-arc-fg').setAttribute('stroke', socColor);
+  document.getElementById('soc-num').textContent  = soc.toFixed(1);
+  document.getElementById('soc-num').style.color  = socColor;
+
+  // SoC sparkline
+  socHistory.push(soc);
+  if(socHistory.length>60) socHistory.shift();
+  socChart.data.datasets[0].data = [...socHistory];
+  socChart.update('none');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  RENDER: TOPOLOGY
+// ══════════════════════════════════════════════════════════════════════════════
+
+const W=560, H=400;
+function latLng(lat,lng){ return [(( lng-68.1)/(74.5-68.1))*W, ((24.7-lat)/(24.7-20.1))*H]; }
+
+function renderTopology(tel){
+  const subs = tel.substations;
+  const svg  = document.getElementById('topo-svg');
+
+  let nom=0, str=0, crit=0;
+  for(const s of Object.values(subs)){
+    if(s.stress>=.75) crit++;
+    else if(s.stress>=.5) str++;
+    else nom++;
+  }
+  document.getElementById('topo-nominal').textContent  = `${nom} Nominal`;
+  document.getElementById('topo-stressed').textContent = `${str} Stressed`;
+  document.getElementById('topo-critical').textContent = `${crit} Critical`;
+
+  // Build SVG
+  const ids = Object.keys(subs);
+  let lines='', nodes='';
+
+  // Feeder lines
+  for(let i=0;i<ids.length;i++){
+    for(let j=i+1;j<ids.length;j++){
+      const [x1,y1]=latLng(subs[ids[i]].lat,subs[ids[i]].lng);
+      const [x2,y2]=latLng(subs[ids[j]].lat,subs[ids[j]].lng);
+      const dist=Math.hypot(x2-x1,y2-y1);
+      if(dist>200) continue;
+      const ms=Math.max(subs[ids[i]].stress,subs[ids[j]].stress);
+      const lc=stressColor(ms);
+      lines+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${lc}" stroke-width="${ms>.7?1.5:.6}" stroke-opacity=".35" ${ms>.75?'stroke-dasharray="4,3"':''}/>`;
+    }
+  }
+
+  // Nodes
+  ids.forEach(id=>{
+    const sub=subs[id];
+    const [cx,cy]=latLng(sub.lat,sub.lng);
+    const color=stressColor(sub.stress);
+    const isSel=selectedSub===id;
+    const r=isSel?11:7;
+    let pulse='';
+    if(sub.stress>=.75){
+      pulse=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r+8}" fill="${color}" opacity="0.12">
+        <animate attributeName="r" values="${r+5};${r+14};${r+5}" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.25;0;0.25" dur="2s" repeatCount="indefinite"/>
+      </circle>`;
+    }
+    nodes+=`${pulse}<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r}" fill="${color}" opacity=".9" stroke="${isSel?'#fff':'none'}" stroke-width="2" style="cursor:pointer" onclick="selectSub('${id}')"/>
+    <text x="${(cx+r+4).toFixed(1)}" y="${(cy+4).toFixed(1)}" font-size="9" fill="#94a3b8" style="pointer-events:none;user-select:none">${id}</text>`;
+  });
+
+  svg.innerHTML = lines + nodes;
+
+  // Update detail panel
+  if(selectedSub && subs[selectedSub]){
+    const sub=subs[selectedSub];
+    const color=stressColor(sub.stress);
+    const label=stressLabel(sub.stress);
+    document.getElementById('topo-detail').innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div><div style="font-weight:700;color:#fff;font-size:14px">${selectedSub}</div><div style="font-size:11px;color:#64748b">${sub.name}</div></div>
+        <span style="font-size:11px;padding:3px 8px;border-radius:6px;background:${color}22;color:${color};border:1px solid ${color}55;font-family:monospace;font-weight:700">${label}</span>
+      </div>
+      <div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span style="color:#64748b">Stress Level</span><span style="font-family:monospace;font-weight:700;color:${color}">${(sub.stress*100).toFixed(1)}%</span></div>
+      <div style="height:7px;background:#1e2d4a;border-radius:3px;overflow:hidden"><div style="height:100%;background:${color};border-radius:3px;transition:width .7s;width:${(sub.stress*100).toFixed(1)}%"></div></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:#64748b">Coordinates</span><span style="font-family:monospace;color:#94a3b8">${sub.lat}°N, ${sub.lng}°E</span></div>`;
+  }
+
+  // Substation list (sorted by stress)
+  const list=document.getElementById('sub-list');
+  const sorted=ids.slice().sort((a,b)=>subs[b].stress-subs[a].stress);
+  list.innerHTML=sorted.map(id=>{
+    const sub=subs[id];
+    const color=stressColor(sub.stress);
+    return `<div class="sub-row" onclick="selectSub('${id}')">
+      <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0;display:inline-block"></span>
+      <span class="sub-row-id">${id}</span>
+      <span class="sub-row-name">${sub.name}</span>
+      <span class="sub-row-pct" style="color:${color}">${(sub.stress*100).toFixed(0)}%</span>
+    </div>`;
+  }).join('');
+}
+
+function selectSub(id){
+  selectedSub = selectedSub===id ? null : id;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  FAULT & OVERRIDE CONTROLS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function toggleFault(mode){
+  SIM.faultMode = SIM.faultMode===mode ? null : mode;
+  updateFaultUI();
+}
+function clearFault(){ SIM.faultMode=null; updateFaultUI(); }
+
+function updateFaultUI(){
+  const f = SIM.faultMode;
+  ['cloud','spike','feeder'].forEach(k=>{
+    const modeMap={cloud:'cloud_cover',spike:'load_spike',feeder:'feeder_trip'};
+    document.getElementById('fb-'+k)?.classList.toggle('active', f===modeMap[k]);
+    document.getElementById('fc-'+k)?.classList.toggle('active', f===modeMap[k]);
+  });
+  const showClear = f!==null;
+  document.getElementById('fb-clear').style.display   = showClear?'':'none';
+  document.getElementById('fc-clear-btn').style.display = showClear?'':'none';
+  document.getElementById('fault-label').textContent  = f ? f.replace(/_/g,' ').toUpperCase() : '';
+}
+
+let manualOverrideOn = false;
+function toggleOverride(){
+  manualOverrideOn = !manualOverrideOn;
+  SIM.manualOverride = manualOverrideOn;
+  const track = document.getElementById('override-track');
+  const thumb = document.getElementById('override-thumb');
+  const label = document.getElementById('override-label');
+  const tag   = document.getElementById('override-active-tag');
+  const desc  = document.getElementById('override-desc');
+  const slider= document.getElementById('sp-slider');
+  const reset = document.getElementById('sp-reset');
+  track.style.background = manualOverrideOn?'#1d4ed8':'#10b981';
+  thumb.style.left       = manualOverrideOn?'23px':'3px';
+  label.textContent      = manualOverrideOn?'Manual Override':'Autonomous (AI)';
+  label.style.color      = manualOverrideOn?'#60a5fa':'#4ade80';
+  tag.style.display      = manualOverrideOn?'':'none';
+  desc.textContent       = manualOverrideOn?'Manual override active — AI agents bypassed':'Enable manual override to set custom dispatch';
+  slider.disabled        = !manualOverrideOn;
+  reset.disabled         = !manualOverrideOn;
+}
+
+function onSetpointChange(val){
+  val = +val;
+  document.getElementById('sp-slider').value = val;
+  SIM.manualSetpoint = val;
+  const label = document.getElementById('sp-label');
+  label.textContent = `${val>=0?'+':''}${val} MW ${val>0?'(discharge)':val<0?'(charge)':'(standby)'}`;
+  label.style.color = val>0?'#f59e0b':val<0?'#60a5fa':'#94a3b8';
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  VIEW SWITCHING
+// ══════════════════════════════════════════════════════════════════════════════
+
+function switchView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+id).classList.add('active');
+  document.getElementById('nav-'+id).classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  MAIN LOOP
+// ══════════════════════════════════════════════════════════════════════════════
+
+let agentTick = 0;
+function tick(){
+  const tel       = simulate();
+  const reasoning = agentReasoning(tel);
+
+  renderDashboard(tel);
+  renderBess(tel);
+  renderTopology(tel);
+
+  agentTick++;
+  if(agentTick % 2 === 0){   // agents refresh every ~4s
+    renderAgents(reasoning);
+    addTerminalLine(reasoning);
+  }
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  initCharts();
+  tick();  // first tick immediately
+  setInterval(tick, 2000);
+});
+</script>
+</body>
+</html>
